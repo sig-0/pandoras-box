@@ -1,0 +1,34 @@
+{
+  "name": "pandoras-box",
+  "version": "1.0.0",
+  "description": "A small and simple stress testing tool for Ethereum-compatible blockchain clients",
+  "main": "index.ts",
+  "author": "Milos Zivkovic",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "@types/cli-progress": "^3.11.0",
+    "@types/node": "^18.6.4",
+    "@typescript-eslint/eslint-plugin": "^5.32.0",
+    "@typescript-eslint/parser": "^5.32.0",
+    "eslint": "^8.21.0",
+    "eslint-config-prettier": "^8.5.0",
+    "eslint-plugin-prettier": "^4.2.1",
+    "prettier": "2.7.1",
+    "typescript": "^4.7.4"
+  },
+  "scripts": {
+    "tsc": "tsc",
+    "lint": "eslint '**/*.ts' --fix",
+    "prettier": "prettier --write .",
+    "build": "yarn tsc && yarn chmod",
+    "chmod": "chmod u+x ./bin/index.js"
+  },
+  "bin": {
+    "pandoras-box": "./bin/index.js"
+  },
+  "dependencies": {
+    "chalk": "4.1.2",
+    "cli-progress": "^3.11.2",
+    "commander": "^9.4.0"
+  }
+}
