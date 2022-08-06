@@ -35,8 +35,8 @@ class runtimeCosts {
     }
 }
 
-interface BaseTxEstimator {
-    EstimateBaseTx(): BigNumber;
+interface RuntimeEstimator {
+    EstimateBaseTx(): Promise<BigNumber>;
 
     GetValue(): BigNumber;
 }
@@ -47,8 +47,7 @@ class Distributor {
     mnemonic: string;
     provider: Provider;
 
-    baseTxEstimate: BigNumber;
-    inherentValue: BigNumber;
+    runtimeEstimator: RuntimeEstimator;
 
     totalTx: number;
     requestedSubAccounts: number;
@@ -58,14 +57,13 @@ class Distributor {
         mnemonic: string,
         subAccounts: number,
         totalTx: number,
-        baseTxEstimator: BaseTxEstimator,
+        runtimeEstimator: RuntimeEstimator,
         url: string
     ) {
         this.requestedSubAccounts = subAccounts;
-        this.inherentValue = baseTxEstimator.GetValue();
         this.totalTx = totalTx;
-        this.baseTxEstimate = baseTxEstimator.EstimateBaseTx();
         this.mnemonic = mnemonic;
+        this.runtimeEstimator = runtimeEstimator;
         this.readyMnemonicIndexes = [];
 
         this.provider = new JsonRpcProvider(url);
@@ -116,10 +114,13 @@ class Distributor {
     }
 
     async calculateRuntimeCosts(): Promise<runtimeCosts> {
+        const inherentValue = this.runtimeEstimator.GetValue();
+        const baseTxEstimate = await this.runtimeEstimator.EstimateBaseTx();
+
         // Calculate the cost of a single cycle transaction (in native currency)
-        const transactionCost = this.inherentValue.gt(0)
-            ? this.inherentValue.add(this.baseTxEstimate)
-            : this.baseTxEstimate;
+        const transactionCost = inherentValue.gt(0)
+            ? inherentValue.add(baseTxEstimate)
+            : baseTxEstimate;
 
         // Calculate how much each sub-account needs
         // to execute their part of the run cycle
@@ -152,6 +153,10 @@ class Distributor {
         Logger.info('Fetching sub-account balances...');
 
         const shortAddresses = new Heap<distributeAccount>();
+
+        balanceBar.start(this.requestedSubAccounts, 0, {
+            speed: 'N/A',
+        });
 
         for (let i = 1; i <= this.requestedSubAccounts; i++) {
             const addrWallet = Wallet.fromMnemonic(
@@ -249,3 +254,5 @@ class Distributor {
         fundBar.stop();
     }
 }
+
+export default Distributor;
