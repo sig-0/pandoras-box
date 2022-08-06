@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
+import Distributor from './distributor/distributor';
+import Logger from './logger/logger';
+import EOARuntime from './runtime/eoa';
+import { StatCollector } from './stats/collector';
 
 async function run() {
     const program = new Command();
@@ -40,11 +44,33 @@ async function run() {
             'The output path for the results JSON'
         )
         .parse();
+
+    const options = program.opts();
+
+    const url = options.jsonRpc;
+    const transactions = options.transactions;
+    const mode = options.mode;
+    const mnemonic = options.mnemonic;
+    const subAccounts = options.SubAccounts;
+
+    const runtime = new EOARuntime(mnemonic, url);
+    const distributor = new Distributor(
+        mnemonic,
+        subAccounts,
+        transactions,
+        runtime,
+        url
+    );
+    const collector = new StatCollector();
+
+    const indxs = await distributor.distribute();
+    const stats = await runtime.run(indxs, transactions);
+
+    await collector.generateStats(stats, mnemonic, url);
 }
 
 run()
     .then()
     .catch((err) => {
-        // TODO log errors with chalk
-        console.error(err);
+        Logger.error(err);
     });

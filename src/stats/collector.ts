@@ -4,10 +4,6 @@ import { SingleBar } from 'cli-progress';
 import Table from 'cli-table';
 import Logger from '../logger/logger';
 
-interface Runtime {
-    run(): Promise<TxStats[]>;
-}
-
 class TxStats {
     txHash: string;
     createdAt: number;
@@ -19,17 +15,9 @@ class TxStats {
         this.createdAt = createdAt;
     }
 
-    setIncludedAt(includedAt: number) {
-        this.includedAt = includedAt;
-    }
-
-    setBlock(block: number) {
-        this.block = block;
-    }
-
     // Returns the transaction turn around time in seconds
     calculateTxTime(): number {
-        const creationDate = new Date(this.createdAt * 1000);
+        const creationDate = new Date(this.createdAt);
         const inclusionDate = new Date(this.includedAt * 1000);
 
         return Math.abs(
@@ -60,10 +48,17 @@ class blockInfo {
         this.gasUsed = gasUsed;
         this.gasLimit = gasLimit;
 
-        this.gasUtilization = gasUsed
+        const wholePart = gasUsed
+            .mul(BigNumber.from(10000))
             .div(gasLimit)
-            .mul(BigNumber.from(100))
             .toNumber();
+        const decimalPart = (wholePart % 100) / 100;
+
+        this.gasUtilization = wholePart + decimalPart;
+        // const decimalPart = (this.gasUtilization = gasUsed
+        //     .div(gasLimit)
+        //     .mul(BigNumber.from(100))
+        //     .toNumber());
     }
 }
 
@@ -71,7 +66,7 @@ class StatCollector {
     async fetchTransactionReceipts(stats: TxStats[], provider: Provider) {
         const txFetchErrors: Error[] = [];
 
-        Logger.info('Gathering transaction receipts...');
+        Logger.info('\nGathering transaction receipts...');
         const receiptBar = new SingleBar({
             barCompleteChar: '\u2588',
             barIncompleteChar: '\u2591',
@@ -86,7 +81,9 @@ class StatCollector {
         for (let txStat of stats) {
             try {
                 const txReceipt = await provider.waitForTransaction(
-                    txStat.txHash
+                    txStat.txHash,
+                    1,
+                    60 * 10000
                 );
 
                 txStat.block = txReceipt.blockNumber;
@@ -120,7 +117,7 @@ class StatCollector {
 
         const blockFetchErrors: Error[] = [];
 
-        Logger.info('Gathering block info...');
+        Logger.info('\nGathering block info...');
         const blocksBar = new SingleBar({
             barCompleteChar: '\u2588',
             barIncompleteChar: '\u2591',
@@ -178,11 +175,42 @@ class StatCollector {
 
     calcTPS(stats: TxStats[]): number {
         let totalTime = 0;
+        let totalTxs = 0;
+
+        // Find the average txn time per block
+        const blockAvgTimes = new Map<number, number>();
+        const uniqueBLocks = new Set<number>();
         for (let stat of stats) {
-            totalTime += stat.calculateTxTime();
+            if (stat.block == 0) {
+                continue;
+            }
+
+            totalTxs++;
+            uniqueBLocks.add(stat.block);
         }
 
-        return stats.length / totalTime;
+        uniqueBLocks.forEach((block) => {
+            let sumBlockTime = 0;
+            let totalTxnNum = 0;
+
+            for (let stat of stats) {
+                if (stat.block != block) {
+                    continue;
+                }
+
+                sumBlockTime += stat.calculateTxTime();
+                totalTxnNum++;
+            }
+
+            blockAvgTimes.set(block, sumBlockTime / totalTxnNum);
+        });
+
+        // Sum block times
+        blockAvgTimes.forEach((blockTimeAvg, blockNum) => {
+            totalTime += blockTimeAvg;
+        });
+
+        return totalTxs / totalTime;
     }
 
     printBlockData(blockInfoMap: Map<number, blockInfo>) {
@@ -208,9 +236,12 @@ class StatCollector {
         Logger.info(utilizationTable.toString());
     }
 
-    async generateStats(runtime: Runtime, mnemonic: string, url: string) {
-        // Run the runtime first
-        const stats = await runtime.run();
+    async generateStats(stats: TxStats[], mnemonic: string, url: string) {
+        if (stats.length == 0) {
+            Logger.warn('No stat data to display');
+
+            return;
+        }
 
         Logger.title('\n⏱ Started statistics calculation ⏱\n');
 
@@ -228,7 +259,7 @@ class StatCollector {
         // Get the average TPS
         const avgTPS = this.calcTPS(stats);
 
-        Logger.title(`The measured TPS: ${avgTPS}`);
+        Logger.info(`\nTPS: ${avgTPS}`);
 
         this.printBlockData(blockInfoMap);
     }

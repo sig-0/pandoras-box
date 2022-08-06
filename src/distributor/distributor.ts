@@ -20,16 +20,10 @@ class distributeAccount {
 }
 
 class runtimeCosts {
-    singleTx: BigNumber;
     accDistributionCost: BigNumber;
     subAccount: BigNumber;
 
-    constructor(
-        singleTx: BigNumber,
-        accDistributionCost: BigNumber,
-        subAccount: BigNumber
-    ) {
-        this.singleTx = singleTx;
+    constructor(accDistributionCost: BigNumber, subAccount: BigNumber) {
         this.accDistributionCost = accDistributionCost;
         this.subAccount = subAccount;
     }
@@ -37,6 +31,8 @@ class runtimeCosts {
 
 interface RuntimeEstimator {
     EstimateBaseTx(): Promise<BigNumber>;
+
+    GetGasPrice(): Promise<BigNumber>;
 
     GetValue(): BigNumber;
 }
@@ -81,7 +77,7 @@ class Distributor {
 
         // Check if there are any addresses that need funding
         const shortAddresses = await this.findAccountsForDistribution(
-            baseCosts.accDistributionCost
+            baseCosts.subAccount
         );
 
         const initialAccCount = shortAddresses.size();
@@ -116,33 +112,29 @@ class Distributor {
     async calculateRuntimeCosts(): Promise<runtimeCosts> {
         const inherentValue = this.runtimeEstimator.GetValue();
         const baseTxEstimate = await this.runtimeEstimator.EstimateBaseTx();
+        const baseGasPrice = await this.runtimeEstimator.GetGasPrice();
 
-        // Calculate the cost of a single cycle transaction (in native currency)
-        const transactionCost = inherentValue.gt(0)
-            ? inherentValue.add(baseTxEstimate)
-            : baseTxEstimate;
+        const baseTxCost = baseGasPrice.mul(baseTxEstimate).add(inherentValue);
 
         // Calculate how much each sub-account needs
-        // to execute their part of the run cycle
-        const subAccountCost = transactionCost.mul(
-            this.totalTx / this.requestedSubAccounts
-        );
+        // to execute their part of the run cycle.
+        // Each account needs at least numTx * (gasPrice * gasLimit + value)
+        // TODO this gives each account the funds to distribute all the txns if needed
+        const subAccountCost = BigNumber.from(this.totalTx).mul(baseTxCost);
 
         // Calculate the cost of the single distribution transaction
         const singleDistributionCost = await this.provider.estimateGas({
+            from: Wallet.fromMnemonic(this.mnemonic, `m/44'/60'/0'/0/0`)
+                .address,
             to: Wallet.fromMnemonic(this.mnemonic, `m/44'/60'/0'/0/1`).address,
             value: subAccountCost,
         });
 
-        return new runtimeCosts(
-            transactionCost,
-            singleDistributionCost,
-            subAccountCost
-        );
+        return new runtimeCosts(singleDistributionCost, subAccountCost);
     }
 
     async findAccountsForDistribution(
-        singleDistributionCost: BigNumber
+        singleRunCost: BigNumber
     ): Promise<Heap<distributeAccount>> {
         const balanceBar = new SingleBar({
             barCompleteChar: '\u2588',
@@ -150,7 +142,7 @@ class Distributor {
             hideCursor: true,
         });
 
-        Logger.info('Fetching sub-account balances...');
+        Logger.info('\nFetching sub-account balances...');
 
         const shortAddresses = new Heap<distributeAccount>();
 
@@ -167,12 +159,12 @@ class Distributor {
             const balance = await addrWallet.getBalance();
             balanceBar.increment();
 
-            if (balance.lt(singleDistributionCost)) {
+            if (balance.lt(singleRunCost)) {
                 // Address doesn't have enough funds, make sure it's
                 // on the list to get topped off
                 shortAddresses.push(
                     new distributeAccount(
-                        singleDistributionCost.sub(balance),
+                        singleRunCost.sub(balance),
                         addrWallet.address,
                         i
                     )
@@ -191,15 +183,14 @@ class Distributor {
     }
 
     printCostTable(costs: runtimeCosts) {
-        Logger.info('Cycle Cost Table:');
+        Logger.info('\nCycle Cost Table:');
         const costTable = new Table({
             head: ['Name', 'Cost [wei]'],
         });
 
         costTable.push(
-            ['Single tx cost', costs.singleTx.toHexString()],
-            ['Distribution cost', costs.accDistributionCost.toHexString()],
-            ['Account cost', costs.subAccount.toHexString()]
+            ['Single tx cost', costs.subAccount.toHexString()],
+            ['Distribution cost', costs.accDistributionCost.toHexString()]
         );
 
         Logger.info(costTable.toString());
@@ -215,7 +206,10 @@ class Distributor {
             await this.ethWallet.getBalance()
         );
 
-        while (distributorBalance.gt(costs.accDistributionCost)) {
+        while (
+            distributorBalance.gt(costs.accDistributionCost) &&
+            initialSet.size() > 0
+        ) {
             const acc = initialSet.pop() as distributeAccount;
             distributorBalance = distributorBalance.sub(acc.missingFunds);
 
@@ -231,6 +225,8 @@ class Distributor {
     }
 
     async fundAccounts(costs: runtimeCosts, accounts: distributeAccount[]) {
+        Logger.info('\nFunding accounts...');
+
         const fundBar = new SingleBar({
             barCompleteChar: '\u2588',
             barIncompleteChar: '\u2591',
@@ -244,7 +240,7 @@ class Distributor {
         for (const acc of accounts) {
             await this.ethWallet.sendTransaction({
                 to: acc.address,
-                value: costs.accDistributionCost.sub(acc.missingFunds),
+                value: acc.missingFunds,
             });
 
             fundBar.increment();

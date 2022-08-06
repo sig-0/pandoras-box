@@ -11,6 +11,7 @@ class EOARuntime {
     provider: Provider;
 
     gasEstimation: BigNumber = BigNumber.from(0);
+    gasPrice: BigNumber = BigNumber.from(0);
 
     constructor(mnemonic: string, url: string) {
         this.mnemonic = mnemonic;
@@ -26,13 +27,19 @@ class EOARuntime {
     async EstimateBaseTx(): Promise<BigNumber> {
         // EOA to EOA transfers are simple value transfers between accounts
         this.gasEstimation = await this.provider.estimateGas({
-            from: Wallet.fromMnemonic(this.mnemonic, `m/44'/60'/0'/0/1`)
+            from: Wallet.fromMnemonic(this.mnemonic, `m/44'/60'/0'/0/0`)
                 .address,
-            to: Wallet.fromMnemonic(this.mnemonic, `m/44'/60'/0'/0/2`).address,
+            to: Wallet.fromMnemonic(this.mnemonic, `m/44'/60'/0'/0/1`).address,
             value: this.GetValue(),
         });
 
         return this.gasEstimation;
+    }
+
+    async GetGasPrice(): Promise<BigNumber> {
+        this.gasPrice = await this.provider.getGasPrice();
+
+        return this.gasPrice;
     }
 
     async getNonceData(accountIndexes: number[]): Promise<Map<number, number>> {
@@ -62,7 +69,7 @@ class EOARuntime {
 
         nonceBar.stop();
 
-        Logger.success('Gathered initial nonce data');
+        Logger.success('Gathered initial nonce data\n');
 
         return startingNonces;
     }
@@ -78,15 +85,12 @@ class EOARuntime {
         ).connect(this.provider);
 
         const chainID = await queryWallet.getChainId();
-        const gasPrice = await queryWallet.getGasPrice();
+        const gasPrice = this.gasPrice;
 
         Logger.info(`Chain ID: ${chainID}`);
         Logger.info(`Gas price: ${gasPrice.toHexString()}`);
 
-        // Calculate how many transactions each account needs to send
-        const txsPerAccount = numTx / accountIndexes.length;
-
-        Logger.info('Sending transactions...');
+        Logger.info('\nSending transactions...');
 
         const value = this.GetValue();
         const txStats: TxStats[] = [];
@@ -104,57 +108,50 @@ class EOARuntime {
         // Send out the transactions
         let failedTxnErrors: Error[] = [];
 
-        for (let accIndex of accountIndexes) {
+        let totalSentTx = 0;
+        while (totalSentTx < numTx) {
+            let senderIndex = totalSentTx % accountIndexes.length;
+            let receiverIndex = (totalSentTx + 1) % accountIndexes.length;
+
+            if (senderIndex == 0) {
+                senderIndex = 1;
+                receiverIndex = senderIndex + 1;
+            }
+
             const wallet = Wallet.fromMnemonic(
                 this.mnemonic,
-                `m/44'/60'/0'/0/${accIndex}`
+                `m/44'/60'/0'/0/${senderIndex}`
             ).connect(this.provider);
 
-            let transactionsSent = 0;
+            const recipient = Wallet.fromMnemonic(
+                this.mnemonic,
+                `m/44'/60'/0'/0/${receiverIndex}`
+            );
 
-            // Send the transactions in Round Robbin fashion
-            while (transactionsSent < txsPerAccount) {
-                for (let innerIndex of accountIndexes) {
-                    if (innerIndex == accIndex) {
-                        continue;
-                    }
+            try {
+                const nonce = startingNonces.get(senderIndex) as number;
 
-                    const recipient = Wallet.fromMnemonic(
-                        this.mnemonic,
-                        `m/44'/60'/0'/0/${innerIndex}`
-                    );
+                const sendTime = Date.now();
+                const txResp = await wallet.sendTransaction({
+                    from: wallet.address,
+                    chainId: chainID,
+                    to: recipient.address,
+                    gasPrice: gasPrice,
+                    gasLimit: this.gasEstimation,
+                    value: value,
+                    nonce: nonce,
+                });
 
-                    try {
-                        const nonce = startingNonces.get(accIndex) as number;
+                txStats.push(new TxStats(txResp.hash, sendTime));
 
-                        // Send out the transaction
-                        const txResp = await wallet.sendTransaction({
-                            chainId: chainID,
-                            to: recipient.address,
-                            gasPrice: gasPrice,
-                            gasLimit: this.gasEstimation,
-                            value: value,
-                            nonce: nonce,
-                        });
-
-                        txStats.push(
-                            new TxStats(txResp.hash, new Date().getTime())
-                        );
-
-                        // Increase the nonce for the next iteration
-                        startingNonces.set(accIndex, nonce + 1);
-                    } catch (e: any) {
-                        failedTxnErrors.push(e);
-                    }
-
-                    transactionsSent++;
-                    txnBar.increment();
-
-                    if (transactionsSent == txsPerAccount) {
-                        break;
-                    }
-                }
+                // Increase the nonce for the next iteration
+                startingNonces.set(senderIndex, nonce + 1);
+            } catch (e: any) {
+                failedTxnErrors.push(e);
             }
+
+            totalSentTx++;
+            txnBar.increment();
         }
 
         txnBar.stop();
@@ -173,7 +170,7 @@ class EOARuntime {
     }
 
     async run(accountIndexes: number[], numTx: number): Promise<TxStats[]> {
-        Logger.title('⚡️ EOA to EOA transfers started ️⚡️');
+        Logger.title('\n⚡️ EOA to EOA transfers started ️⚡️\n');
 
         // Gather starting nonces
         const startingNonces = await this.getNonceData(accountIndexes);
