@@ -1,3 +1,9 @@
+# Dependencies
 node_modules
+
+# Build files
+bin
+
+# Dev environment metadata
 .idea
 .DS_Store
