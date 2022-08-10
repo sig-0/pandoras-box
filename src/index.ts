@@ -43,6 +43,10 @@ async function run() {
             '-o, --output <output-path>',
             'The output path for the results JSON'
         )
+        .option(
+            '-b, --batch <batch>',
+            'The batch size of JSON-RPC transactions'
+        )
         .parse();
 
     const options = program.opts();
@@ -52,8 +56,9 @@ async function run() {
     const mode = options.mode;
     const mnemonic = options.mnemonic;
     const subAccounts = options.SubAccounts;
+    const batch = options.batch;
 
-    const runtime = new EOARuntime(mnemonic, url);
+    const runtime = new EOARuntime(mnemonic, url, batch);
     const distributor = new Distributor(
         mnemonic,
         subAccounts,

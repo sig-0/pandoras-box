@@ -2,20 +2,25 @@ import { BigNumber } from '@ethersproject/bignumber';
 import { JsonRpcProvider, Provider } from '@ethersproject/providers';
 import { parseUnits } from '@ethersproject/units';
 import { Wallet } from '@ethersproject/wallet';
+import axios from 'axios';
 import { SingleBar } from 'cli-progress';
 import Logger from '../logger/logger';
 import { TxStats } from '../stats/collector';
 
 class EOARuntime {
     mnemonic: string;
+    url: string;
     provider: Provider;
+    batchSize: number;
 
     gasEstimation: BigNumber = BigNumber.from(0);
     gasPrice: BigNumber = BigNumber.from(0);
 
-    constructor(mnemonic: string, url: string) {
+    constructor(mnemonic: string, url: string, batch: number) {
         this.mnemonic = mnemonic;
         this.provider = new JsonRpcProvider(url);
+        this.url = url;
+        this.batchSize = batch;
     }
 
     GetValue(): BigNumber {
@@ -127,17 +132,16 @@ class EOARuntime {
             );
         }
 
+        const signedTxs = [];
         while (totalSentTx < numTx) {
             let senderIndex = totalSentTx % accountIndexes.length;
             let receiverIndex = (totalSentTx + 1) % accountIndexes.length;
 
-            if (senderIndex == 0) {
-                senderIndex = 1;
-                receiverIndex = senderIndex + 1;
+            while (senderIndex == 0) {
+                senderIndex = (senderIndex + 1) % accountIndexes.length;
             }
-
-            if (receiverIndex == 0) {
-                receiverIndex += 1;
+            while (receiverIndex == 0) {
+                receiverIndex = (receiverIndex + 1) % accountIndexes.length;
             }
 
             const wallet = walletMap.get(senderIndex) as Wallet;
@@ -146,18 +150,17 @@ class EOARuntime {
             try {
                 const nonce = startingNonces.get(senderIndex) as number;
 
-                const sendTime = Date.now();
-                const txResp = await wallet.sendTransaction({
-                    from: wallet.address,
-                    chainId: chainID,
-                    to: recipient.address,
-                    gasPrice: gasPrice,
-                    gasLimit: this.gasEstimation,
-                    value: value,
-                    nonce: nonce,
-                });
-
-                txStats.push(new TxStats(txResp.hash, sendTime));
+                signedTxs.push(
+                    await wallet.signTransaction({
+                        from: wallet.address,
+                        chainId: chainID,
+                        to: recipient.address,
+                        gasPrice: gasPrice,
+                        gasLimit: this.gasEstimation,
+                        value: value,
+                        nonce: nonce,
+                    })
+                );
 
                 // Increase the nonce for the next iteration
                 startingNonces.set(senderIndex, nonce + 1);
@@ -166,20 +169,101 @@ class EOARuntime {
             }
 
             totalSentTx++;
-            txnBar.increment();
         }
 
-        txnBar.stop();
-
-        Logger.success(`${txStats.length} transactions sent`);
-
         if (failedTxnErrors.length > 0) {
-            Logger.warn('Errors encountered during sending:');
+            Logger.warn('Errors encountered during transaction signing:');
 
             for (let err of failedTxnErrors) {
                 Logger.error(err.message);
             }
         }
+
+        const batches: string[][] = [];
+        const sendTimes: number[] = [];
+        let numBatches: number = Math.ceil(numTx / this.batchSize);
+        if (numBatches == 0) {
+            numBatches = 1;
+        }
+
+        try {
+            for (let i = 0; i < numBatches; i++) {
+                batches[i] = [];
+            }
+
+            let leftoverTxns = signedTxs.length;
+            let txnIndex = 0;
+
+            let currentBatch = 0;
+            while (leftoverTxns > 0) {
+                batches[currentBatch].push(signedTxs[txnIndex++]);
+
+                txnBar.increment();
+                sendTimes.push(Date.now()); // todo fix this to be real
+
+                leftoverTxns -= 1;
+
+                if (batches[currentBatch].length == this.batchSize) {
+                    currentBatch++;
+                }
+            }
+
+            let nextIndx = 0;
+            const responses = await Promise.all(
+                batches.map((item, index) => {
+                    const jsons = [];
+
+                    let obj = '[';
+                    for (let i = 0; i < item.length; i++) {
+                        obj += JSON.stringify({
+                            jsonrpc: '2.0',
+                            method: 'eth_sendRawTransaction',
+                            params: [item[i]],
+                            id: nextIndx++,
+                        });
+
+                        if (i != item.length - 1) {
+                            obj += ',\n';
+                        }
+                    }
+
+                    obj += ']';
+                    for (let innerItem of item) {
+                        jsons.push(
+                            JSON.stringify({
+                                jsonrpc: '2.0',
+                                method: 'eth_sendRawTransaction',
+                                params: innerItem,
+                                id: nextIndx++,
+                            })
+                        );
+                    }
+
+                    return axios({
+                        url: this.url,
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        data: obj,
+                    });
+                })
+            );
+
+            for (let i = 0; i < responses.length; i++) {
+                const content = responses[i].data;
+
+                for (let cnt of content) {
+                    txStats.push(new TxStats(cnt.result, sendTimes[i]));
+                }
+            }
+        } catch (e: any) {
+            Logger.error(e.message);
+        }
+
+        txnBar.stop();
+
+        Logger.success(`${numBatches} batches sent`);
 
         return txStats;
     }

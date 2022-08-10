@@ -219,7 +219,11 @@ class StatCollector {
             ],
         });
 
-        blockInfoMap.forEach((info) => {
+        const sortedMap = new Map(
+            [...blockInfoMap.entries()].sort((a, b) => a[0] - b[0])
+        );
+
+        sortedMap.forEach((info) => {
             utilizationTable.push([
                 `Block #${info.blockNum}`,
                 info.gasUsed.toHexString(),
