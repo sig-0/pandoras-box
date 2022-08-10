@@ -109,6 +109,24 @@ class EOARuntime {
         let failedTxnErrors: Error[] = [];
 
         let totalSentTx = 0;
+        const walletMap: Map<number, Wallet> = new Map<number, Wallet>();
+
+        // Initialize the walletMap
+        const walletsToInit: number =
+            accountIndexes.length > numTx ? numTx : accountIndexes.length;
+
+        for (let i = 0; i < walletsToInit; i++) {
+            const walletIndx = accountIndexes[i];
+
+            walletMap.set(
+                walletIndx,
+                Wallet.fromMnemonic(
+                    this.mnemonic,
+                    `m/44'/60'/0'/0/${walletIndx}`
+                ).connect(this.provider)
+            );
+        }
+
         while (totalSentTx < numTx) {
             let senderIndex = totalSentTx % accountIndexes.length;
             let receiverIndex = (totalSentTx + 1) % accountIndexes.length;
@@ -118,15 +136,12 @@ class EOARuntime {
                 receiverIndex = senderIndex + 1;
             }
 
-            const wallet = Wallet.fromMnemonic(
-                this.mnemonic,
-                `m/44'/60'/0'/0/${senderIndex}`
-            ).connect(this.provider);
+            if (receiverIndex == 0) {
+                receiverIndex += 1;
+            }
 
-            const recipient = Wallet.fromMnemonic(
-                this.mnemonic,
-                `m/44'/60'/0'/0/${receiverIndex}`
-            );
+            const wallet = walletMap.get(senderIndex) as Wallet;
+            const recipient = walletMap.get(receiverIndex) as Wallet;
 
             try {
                 const nonce = startingNonces.get(senderIndex) as number;

@@ -48,17 +48,12 @@ class blockInfo {
         this.gasUsed = gasUsed;
         this.gasLimit = gasLimit;
 
-        const wholePart = gasUsed
+        const largeDivision = gasUsed
             .mul(BigNumber.from(10000))
             .div(gasLimit)
             .toNumber();
-        const decimalPart = (wholePart % 100) / 100;
 
-        this.gasUtilization = wholePart + decimalPart;
-        // const decimalPart = (this.gasUtilization = gasUsed
-        //     .div(gasLimit)
-        //     .mul(BigNumber.from(100))
-        //     .toNumber());
+        this.gasUtilization = largeDivision / 100;
     }
 }
 
