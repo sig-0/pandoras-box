@@ -6,23 +6,10 @@ import Logger from '../logger/logger';
 
 class TxStats {
     txHash: string;
-    createdAt: number;
-    includedAt: number = 0;
     block: number = 0;
 
-    constructor(txHash: string, createdAt: number) {
+    constructor(txHash: string) {
         this.txHash = txHash;
-        this.createdAt = createdAt;
-    }
-
-    // Returns the transaction turn around time in seconds
-    calculateTxTime(): number {
-        const creationDate = new Date(this.createdAt);
-        const inclusionDate = new Date(this.includedAt * 1000);
-
-        return Math.abs(
-            (inclusionDate.getTime() - creationDate.getTime()) / 1000
-        );
     }
 }
 
@@ -80,6 +67,12 @@ class StatCollector {
                     1,
                     60 * 10000
                 );
+
+                if (txReceipt.status != undefined && txReceipt.status == 0) {
+                    throw new Error(
+                        `transaction ${txStat.txHash} failed during execution`
+                    );
+                }
 
                 txStat.block = txReceipt.blockNumber;
             } catch (e: any) {
@@ -160,56 +153,63 @@ class StatCollector {
         return blocksMap;
     }
 
-    updateTxStats(stats: TxStats[], blockInfo: Map<number, blockInfo>) {
-        for (let stat of stats) {
-            const block = blockInfo.get(stat.block) as blockInfo;
-
-            stat.includedAt = block.createdAt;
-        }
-    }
-
-    calcTPS(stats: TxStats[]): number {
-        let totalTime = 0;
+    async calcTPS(stats: TxStats[], provider: Provider): Promise<number> {
+        Logger.title('\n🧮 Calculating TPS data 🧮');
         let totalTxs = 0;
+        let totalTime = 0;
 
         // Find the average txn time per block
-        const blockAvgTimes = new Map<number, number>();
-        const uniqueBLocks = new Set<number>();
+        const blockFetchErrors = [];
+        const blockTimeMap: Map<number, number> = new Map<number, number>();
+        const uniqueBlocks = new Set<number>();
+
         for (let stat of stats) {
             if (stat.block == 0) {
                 continue;
             }
 
             totalTxs++;
-            uniqueBLocks.add(stat.block);
+            uniqueBlocks.add(stat.block);
         }
 
-        uniqueBLocks.forEach((block) => {
-            let sumBlockTime = 0;
-            let totalTxnNum = 0;
+        for (const block of uniqueBlocks) {
+            // Get the parent block to find the generation time
+            try {
+                // TODO handle genesis block case (no parent)
+                const currentBlockNum = block;
+                const parentBlockNum = currentBlockNum - 1;
 
-            for (let stat of stats) {
-                if (stat.block != block) {
-                    continue;
+                if (!blockTimeMap.has(parentBlockNum)) {
+                    const parentBlock = await provider.getBlock(parentBlockNum);
+
+                    blockTimeMap.set(parentBlockNum, parentBlock.timestamp);
                 }
 
-                sumBlockTime += stat.calculateTxTime();
-                totalTxnNum++;
+                const parentBlock = blockTimeMap.get(parentBlockNum) as number;
+
+                if (!blockTimeMap.has(currentBlockNum)) {
+                    const currentBlock = await provider.getBlock(
+                        currentBlockNum
+                    );
+
+                    blockTimeMap.set(currentBlockNum, currentBlock.timestamp);
+                }
+
+                const currentBlock = blockTimeMap.get(
+                    currentBlockNum
+                ) as number;
+
+                totalTime += Math.round(Math.abs(currentBlock - parentBlock));
+            } catch (e: any) {
+                blockFetchErrors.push(e);
             }
-
-            blockAvgTimes.set(block, sumBlockTime / totalTxnNum);
-        });
-
-        // Sum block times
-        blockAvgTimes.forEach((blockTimeAvg, blockNum) => {
-            totalTime += blockTimeAvg;
-        });
+        }
 
         return totalTxs / totalTime;
     }
 
     printBlockData(blockInfoMap: Map<number, blockInfo>) {
-        Logger.info('Block utilization data:');
+        Logger.info('\nBlock utilization data:');
         const utilizationTable = new Table({
             head: [
                 'Block #',
@@ -252,15 +252,14 @@ class StatCollector {
         // Fetch block info
         const blockInfoMap = await this.fetchBlockInfo(stats, provider);
 
-        // Update the transaction stats
-        this.updateTxStats(stats, blockInfoMap);
+        this.printBlockData(blockInfoMap);
 
         // Get the average TPS
-        const avgTPS = this.calcTPS(stats);
+        // TODO optimize this call with the block info map
+        const avgTPS = await this.calcTPS(stats, provider);
 
-        Logger.info(`\nTPS: ${avgTPS}`);
-
-        this.printBlockData(blockInfoMap);
+        Logger.info(`\nTotal blocks required: ${blockInfoMap.size}`);
+        Logger.info(`TPS: ${Math.ceil(avgTPS)}`);
     }
 }
 

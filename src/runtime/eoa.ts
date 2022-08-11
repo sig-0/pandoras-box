@@ -95,28 +95,15 @@ class EOARuntime {
         Logger.info(`Chain ID: ${chainID}`);
         Logger.info(`Gas price: ${gasPrice.toHexString()}`);
 
-        Logger.info('\nSending transactions...');
-
         const value = this.GetValue();
         const txStats: TxStats[] = [];
 
-        const txnBar = new SingleBar({
-            barCompleteChar: '\u2588',
-            barIncompleteChar: '\u2591',
-            hideCursor: true,
-        });
-
-        txnBar.start(numTx, 0, {
-            speed: 'N/A',
-        });
-
-        // Send out the transactions
         let failedTxnErrors: Error[] = [];
 
         let totalSentTx = 0;
         const walletMap: Map<number, Wallet> = new Map<number, Wallet>();
 
-        // Initialize the walletMap
+        // Initialize the wallet provider map for quick lookup
         const walletsToInit: number =
             accountIndexes.length > numTx ? numTx : accountIndexes.length;
 
@@ -179,12 +166,24 @@ class EOARuntime {
             }
         }
 
+        // Find how many batches need to be sent out
         const batches: string[][] = [];
-        const sendTimes: number[] = [];
         let numBatches: number = Math.ceil(numTx / this.batchSize);
         if (numBatches == 0) {
             numBatches = 1;
         }
+
+        Logger.info('\nSending transactions in batches...');
+
+        const batchBar = new SingleBar({
+            barCompleteChar: '\u2588',
+            barIncompleteChar: '\u2591',
+            hideCursor: true,
+        });
+
+        batchBar.start(numBatches, 0, {
+            speed: 'N/A',
+        });
 
         try {
             for (let i = 0; i < numBatches; i++) {
@@ -197,25 +196,19 @@ class EOARuntime {
             let currentBatch = 0;
             while (leftoverTxns > 0) {
                 batches[currentBatch].push(signedTxs[txnIndex++]);
-
-                txnBar.increment();
-                sendTimes.push(Date.now()); // todo fix this to be real
-
                 leftoverTxns -= 1;
 
-                if (batches[currentBatch].length == this.batchSize) {
+                if (batches[currentBatch].length % this.batchSize == 0) {
                     currentBatch++;
                 }
             }
 
             let nextIndx = 0;
             const responses = await Promise.all(
-                batches.map((item, index) => {
-                    const jsons = [];
-
-                    let obj = '[';
+                batches.map((item) => {
+                    let singleRequests = '';
                     for (let i = 0; i < item.length; i++) {
-                        obj += JSON.stringify({
+                        singleRequests += JSON.stringify({
                             jsonrpc: '2.0',
                             method: 'eth_sendRawTransaction',
                             params: [item[i]],
@@ -223,21 +216,11 @@ class EOARuntime {
                         });
 
                         if (i != item.length - 1) {
-                            obj += ',\n';
+                            singleRequests += ',\n';
                         }
                     }
 
-                    obj += ']';
-                    for (let innerItem of item) {
-                        jsons.push(
-                            JSON.stringify({
-                                jsonrpc: '2.0',
-                                method: 'eth_sendRawTransaction',
-                                params: innerItem,
-                                id: nextIndx++,
-                            })
-                        );
-                    }
+                    batchBar.increment();
 
                     return axios({
                         url: this.url,
@@ -245,7 +228,7 @@ class EOARuntime {
                         headers: {
                             'Content-Type': 'application/json',
                         },
-                        data: obj,
+                        data: '[' + singleRequests + ']',
                     });
                 })
             );
@@ -254,16 +237,18 @@ class EOARuntime {
                 const content = responses[i].data;
 
                 for (let cnt of content) {
-                    txStats.push(new TxStats(cnt.result, sendTimes[i]));
+                    txStats.push(new TxStats(cnt.result));
                 }
             }
         } catch (e: any) {
             Logger.error(e.message);
         }
 
-        txnBar.stop();
+        batchBar.stop();
 
-        Logger.success(`${numBatches} batches sent`);
+        Logger.success(
+            `${numBatches} ${numBatches > 1 ? 'batches' : 'batch'} sent`
+        );
 
         return txStats;
     }
