@@ -7,6 +7,30 @@ import { SingleBar } from 'cli-progress';
 import Logger from '../logger/logger';
 import { TxStats } from '../stats/collector';
 
+class senderAccount {
+    mnemonicIndex: number;
+    nonce: number;
+    wallet: Wallet;
+
+    constructor(mnemonicIndex: number, nonce: number, wallet: Wallet) {
+        this.mnemonicIndex = mnemonicIndex;
+        this.nonce = nonce;
+        this.wallet = wallet;
+    }
+
+    incrNonce() {
+        this.nonce++;
+    }
+
+    getNonce() {
+        return this.nonce;
+    }
+
+    getAddress() {
+        return this.wallet.address;
+    }
+}
+
 class EOARuntime {
     mnemonic: string;
     url: string;
@@ -16,11 +40,15 @@ class EOARuntime {
     gasEstimation: BigNumber = BigNumber.from(0);
     gasPrice: BigNumber = BigNumber.from(0);
 
+    accounts: senderAccount[];
+
     constructor(mnemonic: string, url: string, batch: number) {
         this.mnemonic = mnemonic;
         this.provider = new JsonRpcProvider(url);
         this.url = url;
         this.batchSize = batch;
+
+        this.accounts = [];
     }
 
     GetValue(): BigNumber {
@@ -47,8 +75,46 @@ class EOARuntime {
         return this.gasPrice;
     }
 
+    async initializeSenderAccounts(accountIndexes: number[], numTxs: number) {
+        Logger.info('Gathering initial account nonces...');
+
+        // Maps the account index -> starting nonce
+        const walletsToInit: number =
+            accountIndexes.length > numTxs ? numTxs : accountIndexes.length;
+
+        const nonceBar = new SingleBar({
+            barCompleteChar: '\u2588',
+            barIncompleteChar: '\u2591',
+            hideCursor: true,
+        });
+
+        nonceBar.start(walletsToInit, 0, {
+            speed: 'N/A',
+        });
+
+        for (let i = 0; i < walletsToInit; i++) {
+            const accIndex = accountIndexes[i];
+
+            const wallet = Wallet.fromMnemonic(
+                this.mnemonic,
+                `m/44'/60'/0'/0/${accIndex}`
+            ).connect(this.provider);
+            const accountNonce = await wallet.getTransactionCount();
+
+            this.accounts.push(
+                new senderAccount(accIndex, accountNonce, wallet)
+            );
+
+            nonceBar.increment();
+        }
+
+        nonceBar.stop();
+
+        Logger.success('Gathered initial nonce data\n');
+    }
+
     async getNonceData(accountIndexes: number[]): Promise<Map<number, number>> {
-        Logger.info('Gathering account nonces...');
+        Logger.info('Gathering initial account nonces...');
 
         // Maps the account index -> starting nonce
         const startingNonces: Map<number, number> = new Map<number, number>();
@@ -79,96 +145,13 @@ class EOARuntime {
         return startingNonces;
     }
 
-    async sendTransactions(
-        accountIndexes: number[],
-        numTx: number,
-        startingNonces: Map<number, number>
+    async batchTransactions(
+        numTxs: number,
+        signedTxs: string[]
     ): Promise<TxStats[]> {
-        const queryWallet = Wallet.fromMnemonic(
-            this.mnemonic,
-            `m/44'/60'/0'/0/0`
-        ).connect(this.provider);
-
-        const chainID = await queryWallet.getChainId();
-        const gasPrice = this.gasPrice;
-
-        Logger.info(`Chain ID: ${chainID}`);
-        Logger.info(`Gas price: ${gasPrice.toHexString()}`);
-
-        const value = this.GetValue();
-        const txStats: TxStats[] = [];
-
-        let failedTxnErrors: Error[] = [];
-
-        let totalSentTx = 0;
-        const walletMap: Map<number, Wallet> = new Map<number, Wallet>();
-
-        // Initialize the wallet provider map for quick lookup
-        const walletsToInit: number =
-            accountIndexes.length > numTx ? numTx : accountIndexes.length;
-
-        for (let i = 0; i < walletsToInit; i++) {
-            const walletIndx = accountIndexes[i];
-
-            walletMap.set(
-                walletIndx,
-                Wallet.fromMnemonic(
-                    this.mnemonic,
-                    `m/44'/60'/0'/0/${walletIndx}`
-                ).connect(this.provider)
-            );
-        }
-
-        const signedTxs = [];
-        while (totalSentTx < numTx) {
-            let senderIndex = totalSentTx % accountIndexes.length;
-            let receiverIndex = (totalSentTx + 1) % accountIndexes.length;
-
-            while (senderIndex == 0) {
-                senderIndex = (senderIndex + 1) % accountIndexes.length;
-            }
-            while (receiverIndex == 0) {
-                receiverIndex = (receiverIndex + 1) % accountIndexes.length;
-            }
-
-            const wallet = walletMap.get(senderIndex) as Wallet;
-            const recipient = walletMap.get(receiverIndex) as Wallet;
-
-            try {
-                const nonce = startingNonces.get(senderIndex) as number;
-
-                signedTxs.push(
-                    await wallet.signTransaction({
-                        from: wallet.address,
-                        chainId: chainID,
-                        to: recipient.address,
-                        gasPrice: gasPrice,
-                        gasLimit: this.gasEstimation,
-                        value: value,
-                        nonce: nonce,
-                    })
-                );
-
-                // Increase the nonce for the next iteration
-                startingNonces.set(senderIndex, nonce + 1);
-            } catch (e: any) {
-                failedTxnErrors.push(e);
-            }
-
-            totalSentTx++;
-        }
-
-        if (failedTxnErrors.length > 0) {
-            Logger.warn('Errors encountered during transaction signing:');
-
-            for (let err of failedTxnErrors) {
-                Logger.error(err.message);
-            }
-        }
-
         // Find how many batches need to be sent out
         const batches: string[][] = [];
-        let numBatches: number = Math.ceil(numTx / this.batchSize);
+        let numBatches: number = Math.ceil(numTxs / this.batchSize);
         if (numBatches == 0) {
             numBatches = 1;
         }
@@ -184,6 +167,8 @@ class EOARuntime {
         batchBar.start(numBatches, 0, {
             speed: 'N/A',
         });
+
+        const txStats: TxStats[] = [];
 
         try {
             for (let i = 0; i < numBatches; i++) {
@@ -253,18 +238,72 @@ class EOARuntime {
         return txStats;
     }
 
-    async run(accountIndexes: number[], numTx: number): Promise<TxStats[]> {
-        Logger.title('\n⚡️ EOA to EOA transfers started ️⚡️\n');
+    async sendTransactions(numTx: number): Promise<TxStats[]> {
+        const queryWallet = Wallet.fromMnemonic(
+            this.mnemonic,
+            `m/44'/60'/0'/0/0`
+        ).connect(this.provider);
 
-        // Gather starting nonces
-        const startingNonces = await this.getNonceData(accountIndexes);
+        const chainID = await queryWallet.getChainId();
+        const gasPrice = this.gasPrice;
+
+        Logger.info(`Chain ID: ${chainID}`);
+        Logger.info(`Avg. gas price: ${gasPrice.toHexString()}`);
+
+        const value = this.GetValue();
+        const failedTxnErrors: Error[] = [];
+
+        let totalSentTx = 0;
+
+        const signedTxs: string[] = [];
+        while (totalSentTx < numTx) {
+            const senderIndex = totalSentTx % this.accounts.length;
+            const receiverIndex = (totalSentTx + 1) % this.accounts.length;
+
+            const sender = this.accounts[senderIndex];
+            const receiver = this.accounts[receiverIndex];
+
+            try {
+                signedTxs.push(
+                    await sender.wallet.signTransaction({
+                        from: sender.getAddress(),
+                        chainId: chainID,
+                        to: receiver.getAddress(),
+                        gasPrice: gasPrice,
+                        gasLimit: this.gasEstimation,
+                        value: value,
+                        nonce: sender.getNonce(),
+                    })
+                );
+
+                // Increase the nonce for the next iteration
+                sender.incrNonce();
+            } catch (e: any) {
+                failedTxnErrors.push(e);
+            }
+
+            totalSentTx++;
+        }
+
+        if (failedTxnErrors.length > 0) {
+            Logger.warn('Errors encountered during transaction signing:');
+
+            for (let err of failedTxnErrors) {
+                Logger.error(err.message);
+            }
+        }
+
+        return this.batchTransactions(numTx, signedTxs);
+    }
+
+    async Run(accountIndexes: number[], numTxs: number): Promise<TxStats[]> {
+        Logger.title('\n⚡️ EOA to EOA transfers initialized ️⚡️\n');
+
+        // Initialize initial account data
+        await this.initializeSenderAccounts(accountIndexes, numTxs);
 
         // Send the transactions
-        return await this.sendTransactions(
-            accountIndexes,
-            numTx,
-            startingNonces
-        );
+        return await this.sendTransactions(numTxs);
     }
 }
 

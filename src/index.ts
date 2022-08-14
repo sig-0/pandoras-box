@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
-import Distributor from './distributor/distributor';
+import { Distributor, Runtime } from './distributor/distributor';
 import Logger from './logger/logger';
+import Outputter from './outputter/outputter';
 import EOARuntime from './runtime/eoa';
+import RuntimeErrors from './runtime/errors';
+import { RuntimeType } from './runtime/runtimes';
 import { StatCollector } from './stats/collector';
 
 async function run() {
@@ -45,7 +48,8 @@ async function run() {
         )
         .option(
             '-b, --batch <batch>',
-            'The batch size of JSON-RPC transactions'
+            'The batch size of JSON-RPC transactions',
+            '20'
         )
         .parse();
 
@@ -57,8 +61,19 @@ async function run() {
     const mnemonic = options.mnemonic;
     const subAccounts = options.SubAccounts;
     const batch = options.batch;
+    const output = options.output;
 
-    const runtime = new EOARuntime(mnemonic, url, batch);
+    let runtime: Runtime;
+    switch (mode) {
+        case RuntimeType.EOA:
+            runtime = new EOARuntime(mnemonic, url, batch);
+
+            break;
+        default:
+            throw RuntimeErrors.errUnknownRuntime;
+    }
+
+    // Distribute the funds
     const distributor = new Distributor(
         mnemonic,
         subAccounts,
@@ -66,12 +81,23 @@ async function run() {
         runtime,
         url
     );
-    const collector = new StatCollector();
 
     const indxs = await distributor.distribute();
-    const stats = await runtime.run(indxs, transactions);
 
-    await collector.generateStats(stats, mnemonic, url);
+    // Run the runtime
+    const txStats = await runtime.Run(indxs, transactions);
+
+    // Collect the data
+    const collectorData = await new StatCollector().generateStats(
+        txStats,
+        mnemonic,
+        url
+    );
+
+    // Output the data if needed
+    if (output) {
+        Outputter.outputData(collectorData, output);
+    }
 }
 
 run()

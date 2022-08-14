@@ -13,13 +13,13 @@ class TxStats {
     }
 }
 
-class blockInfo {
+class BlockInfo {
     blockNum: number;
     createdAt: number;
     numTxs: number;
 
-    gasUsed: BigNumber;
-    gasLimit: BigNumber;
+    gasUsed: string;
+    gasLimit: string;
     gasUtilization: number;
 
     constructor(
@@ -32,8 +32,8 @@ class blockInfo {
         this.blockNum = blockNum;
         this.createdAt = createdAt;
         this.numTxs = numTxs;
-        this.gasUsed = gasUsed;
-        this.gasLimit = gasLimit;
+        this.gasUsed = gasUsed.toHexString();
+        this.gasLimit = gasLimit.toHexString();
 
         const largeDivision = gasUsed
             .mul(BigNumber.from(10000))
@@ -44,11 +44,21 @@ class blockInfo {
     }
 }
 
+class CollectorData {
+    tps: number;
+    blockInfo: Map<number, BlockInfo>;
+
+    constructor(tps: number, blockInfo: Map<number, BlockInfo>) {
+        this.tps = tps;
+        this.blockInfo = blockInfo;
+    }
+}
+
 class StatCollector {
     async fetchTransactionReceipts(stats: TxStats[], provider: Provider) {
         const txFetchErrors: Error[] = [];
 
-        Logger.info('\nGathering transaction receipts...');
+        Logger.info('Gathering transaction receipts...');
         const receiptBar = new SingleBar({
             barCompleteChar: '\u2588',
             barIncompleteChar: '\u2591',
@@ -97,7 +107,7 @@ class StatCollector {
     async fetchBlockInfo(
         stats: TxStats[],
         provider: Provider
-    ): Promise<Map<number, blockInfo>> {
+    ): Promise<Map<number, BlockInfo>> {
         let blockSet: Set<number> = new Set<number>();
         for (let s of stats) {
             blockSet.add(s.block);
@@ -116,7 +126,7 @@ class StatCollector {
             speed: 'N/A',
         });
 
-        const blocksMap: Map<number, blockInfo> = new Map<number, blockInfo>();
+        const blocksMap: Map<number, BlockInfo> = new Map<number, BlockInfo>();
         for (let block of blockSet.keys()) {
             try {
                 const fetchedInfo = await provider.getBlock(block);
@@ -125,7 +135,7 @@ class StatCollector {
 
                 blocksMap.set(
                     block,
-                    new blockInfo(
+                    new BlockInfo(
                         block,
                         fetchedInfo.timestamp,
                         fetchedInfo.transactions.length,
@@ -154,7 +164,7 @@ class StatCollector {
     }
 
     async calcTPS(stats: TxStats[], provider: Provider): Promise<number> {
-        Logger.title('\n🧮 Calculating TPS data 🧮');
+        Logger.title('\n🧮 Calculating TPS data 🧮\n');
         let totalTxs = 0;
         let totalTime = 0;
 
@@ -175,7 +185,6 @@ class StatCollector {
         for (const block of uniqueBlocks) {
             // Get the parent block to find the generation time
             try {
-                // TODO handle genesis block case (no parent)
                 const currentBlockNum = block;
                 const parentBlockNum = currentBlockNum - 1;
 
@@ -205,16 +214,17 @@ class StatCollector {
             }
         }
 
-        return totalTxs / totalTime;
+        return Math.ceil(totalTxs / totalTime);
     }
 
-    printBlockData(blockInfoMap: Map<number, blockInfo>) {
+    printBlockData(blockInfoMap: Map<number, BlockInfo>) {
         Logger.info('\nBlock utilization data:');
         const utilizationTable = new Table({
             head: [
                 'Block #',
                 'Gas Used [wei]',
                 'Gas Limit [wei]',
+                'Transactions',
                 'Utilization',
             ],
         });
@@ -226,8 +236,9 @@ class StatCollector {
         sortedMap.forEach((info) => {
             utilizationTable.push([
                 `Block #${info.blockNum}`,
-                info.gasUsed.toHexString(),
-                info.gasLimit.toHexString(),
+                info.gasUsed,
+                info.gasLimit,
+                info.numTxs,
                 `${info.gasUtilization}%`,
             ]);
         });
@@ -235,14 +246,39 @@ class StatCollector {
         Logger.info(utilizationTable.toString());
     }
 
-    async generateStats(stats: TxStats[], mnemonic: string, url: string) {
+    printFinalData(tps: number, blockInfoMap: Map<number, BlockInfo>) {
+        // Find average utilization
+        let totalUtilization = 0;
+        blockInfoMap.forEach((info) => {
+            totalUtilization += info.gasUtilization;
+        });
+        const avgUtilization = totalUtilization / blockInfoMap.size;
+
+        const finalDataTable = new Table({
+            head: ['TPS', 'Blocks', 'Avg. Utilization'],
+        });
+
+        finalDataTable.push([
+            tps,
+            blockInfoMap.size,
+            `${avgUtilization.toFixed(2)}%`,
+        ]);
+
+        Logger.info(finalDataTable.toString());
+    }
+
+    async generateStats(
+        stats: TxStats[],
+        mnemonic: string,
+        url: string
+    ): Promise<CollectorData> {
         if (stats.length == 0) {
             Logger.warn('No stat data to display');
 
-            return;
+            return new CollectorData(0, new Map());
         }
 
-        Logger.title('\n⏱ Started statistics calculation ⏱\n');
+        Logger.title('\n⏱ Statistics calculation initialized ⏱\n');
 
         const provider = new JsonRpcProvider(url);
 
@@ -252,15 +288,15 @@ class StatCollector {
         // Fetch block info
         const blockInfoMap = await this.fetchBlockInfo(stats, provider);
 
+        // Print the block utilization data
         this.printBlockData(blockInfoMap);
 
-        // Get the average TPS
-        // TODO optimize this call with the block info map
+        // Print the final TPS and avg. utilization data
         const avgTPS = await this.calcTPS(stats, provider);
+        this.printFinalData(avgTPS, blockInfoMap);
 
-        Logger.info(`\nTotal blocks required: ${blockInfoMap.size}`);
-        Logger.info(`TPS: ${Math.ceil(avgTPS)}`);
+        return new CollectorData(avgTPS, blockInfoMap);
     }
 }
 
-export { TxStats, StatCollector };
+export { TxStats, StatCollector, CollectorData, BlockInfo };

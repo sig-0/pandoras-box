@@ -1,10 +1,12 @@
 import { BigNumber } from '@ethersproject/bignumber';
 import { JsonRpcProvider, Provider } from '@ethersproject/providers';
+import { formatEther } from '@ethersproject/units';
 import { Wallet } from '@ethersproject/wallet';
 import { SingleBar } from 'cli-progress';
 import Table from 'cli-table';
 import Heap from 'heap';
 import Logger from '../logger/logger';
+import { Runtime } from '../runtime/runtimes';
 import DistributorErrors from './errors';
 
 class distributeAccount {
@@ -29,21 +31,13 @@ class runtimeCosts {
     }
 }
 
-interface RuntimeEstimator {
-    EstimateBaseTx(): Promise<BigNumber>;
-
-    GetGasPrice(): Promise<BigNumber>;
-
-    GetValue(): BigNumber;
-}
-
 // Manages the fund distribution before each run-cycle
 class Distributor {
     ethWallet: Wallet;
     mnemonic: string;
     provider: Provider;
 
-    runtimeEstimator: RuntimeEstimator;
+    runtimeEstimator: Runtime;
 
     totalTx: number;
     requestedSubAccounts: number;
@@ -53,7 +47,7 @@ class Distributor {
         mnemonic: string,
         subAccounts: number,
         totalTx: number,
-        runtimeEstimator: RuntimeEstimator,
+        runtimeEstimator: Runtime,
         url: string
     ) {
         this.requestedSubAccounts = subAccounts;
@@ -119,7 +113,6 @@ class Distributor {
         // Calculate how much each sub-account needs
         // to execute their part of the run cycle.
         // Each account needs at least numTx * (gasPrice * gasLimit + value)
-        // TODO this gives each account the funds to distribute all the txns if needed
         const subAccountCost = BigNumber.from(this.totalTx).mul(baseTxCost);
 
         // Calculate the cost of the single distribution transaction
@@ -185,12 +178,12 @@ class Distributor {
     printCostTable(costs: runtimeCosts) {
         Logger.info('\nCycle Cost Table:');
         const costTable = new Table({
-            head: ['Name', 'Cost [wei]'],
+            head: ['Name', 'Cost [eth]'],
         });
 
         costTable.push(
-            ['Single tx cost', costs.subAccount.toHexString()],
-            ['Distribution cost', costs.accDistributionCost.toHexString()]
+            ['Required acc. balance', formatEther(costs.subAccount)],
+            ['Single distribution cost', formatEther(costs.accDistributionCost)]
         );
 
         Logger.info(costTable.toString());
@@ -251,4 +244,4 @@ class Distributor {
     }
 }
 
-export default Distributor;
+export { Distributor, Runtime };
