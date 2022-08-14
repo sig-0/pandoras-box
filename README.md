@@ -49,6 +49,8 @@ at `http://127.0.0.1:10002`, with batch limits being `5000`, and outputting the 
 pandoras-box -url http://127.0.0.1:10002 -m "erupt oven loud noise rug proof sunset gas table era dizzy vault" -t 100 -b 5000 -o ./myOutput.json
 ```
 
+![Banner](.github/demo.gif)
+
 # Modes
 
 ## EOA
