@@ -5,12 +5,12 @@ It is made for Ethereum-compatible blockchain networks, such as Ethereum network
 
 The key features of `pandoras-box` are the following:
 
-* ✅ Supports transaction batching, making stress testing orchestration hassle-free
-* ✅ Supports multiple stress testing modes
-* ✅ Supports distributed transaction stress testing through subaccounts
-* ✅ Automatic subaccount fund top-off
-* ✅ Has detailed statistics calculation
-* ✅ Has support for outputting cycle-run results
+-   ✅ Supports transaction batching, making stress testing orchestration hassle-free
+-   ✅ Supports multiple stress testing modes
+-   ✅ Supports distributed transaction stress testing through subaccounts
+-   ✅ Automatic subaccount fund top-off
+-   ✅ Has detailed statistics calculation
+-   ✅ Has support for outputting cycle-run results
 
 # Usage Example
 
@@ -37,6 +37,10 @@ Options:
   -h, --help                           display help for command
 ```
 
+For any stress test run, there need to be funds on a specific address.
+The address that is in charge of funds distribution to subaccounts is the **first address** with index 0 in the
+specified mnemonic.
+
 To initiate a 100 transaction `EOA` stress test run on an Ethereum-compatible blockchain network with a JSON-RPC
 endpoint
 at `http://127.0.0.1:10002`, with batch limits being `5000`, and outputting the result to a file:
@@ -46,10 +50,6 @@ pandoras-box -url http://127.0.0.1:10002 -m "erupt oven loud noise rug proof sun
 ```
 
 # Modes
-
-For any stress test run, there need to be funds on a specific address.
-The address that is in charge of funds distribution to subaccounts is the **first address** with index 0 in the
-specified mnemonic.
 
 ## EOA
 
