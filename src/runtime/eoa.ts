@@ -169,6 +169,7 @@ class EOARuntime {
         });
 
         const txStats: TxStats[] = [];
+        const batchErrors: string[] = [];
 
         try {
             for (let i = 0; i < numBatches; i++) {
@@ -222,6 +223,13 @@ class EOARuntime {
                 const content = responses[i].data;
 
                 for (let cnt of content) {
+                    if (cnt.hasOwnProperty('error')) {
+                        // Error occurred during batch sends
+                        batchErrors.push(cnt.error.message);
+
+                        continue;
+                    }
+
                     txStats.push(new TxStats(cnt.result));
                 }
             }
@@ -230,6 +238,14 @@ class EOARuntime {
         }
 
         batchBar.stop();
+
+        if (batchErrors.length > 0) {
+            Logger.warn('Errors encountered during back sending:');
+
+            for (let err of batchErrors) {
+                Logger.error(err);
+            }
+        }
 
         Logger.success(
             `${numBatches} ${numBatches > 1 ? 'batches' : 'batch'} sent`
