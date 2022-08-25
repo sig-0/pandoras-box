@@ -271,6 +271,17 @@ class EOARuntime {
 
         let totalSentTx = 0;
 
+        const signBar = new SingleBar({
+            barCompleteChar: '\u2588',
+            barIncompleteChar: '\u2591',
+            hideCursor: true,
+        });
+
+        Logger.info('\nSigning transactions...');
+        signBar.start(numTx, 0, {
+            speed: 'N/A',
+        });
+
         const signedTxs: string[] = [];
         while (totalSentTx < numTx) {
             const senderIndex = totalSentTx % this.accounts.length;
@@ -299,7 +310,10 @@ class EOARuntime {
             }
 
             totalSentTx++;
+            signBar.increment();
         }
+
+        signBar.stop();
 
         if (failedTxnErrors.length > 0) {
             Logger.warn('Errors encountered during transaction signing:');
