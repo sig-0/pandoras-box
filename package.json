@@ -36,7 +36,7 @@
         "chalk": "4.1.2",
         "cli-progress": "^3.11.2",
         "cli-table": "^0.3.11",
-        "commander": "^9.4.0",
+        "commander": "^9.4.1",
         "heap": "^0.2.7"
     }
 }
