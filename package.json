@@ -30,7 +30,7 @@
         "@ethersproject/providers": "^5.7.1",
         "@ethersproject/units": "^5.7.0",
         "@ethersproject/wallet": "^5.7.0",
-        "@types/cli-table": "^0.3.0",
+        "@types/cli-table": "^0.3.1",
         "@types/heap": "^0.2.31",
         "axios": "^0.27.2",
         "chalk": "4.1.2",
