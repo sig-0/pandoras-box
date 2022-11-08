@@ -1,12 +1,12 @@
 import { BigNumber } from '@ethersproject/bignumber';
 import { JsonRpcProvider, Provider } from '@ethersproject/providers';
 import { SingleBar } from 'cli-progress';
-import Table from 'cli-table';
+import Table from 'cli-table3';
 import Logger from '../logger/logger';
 
 class TxStats {
     txHash: string;
-    block: number = 0;
+    block = 0;
 
     constructor(txHash: string) {
         this.txHash = txHash;
@@ -70,7 +70,7 @@ class StatCollector {
         });
 
         // Wait for all the transactions to get mined
-        for (let txStat of stats) {
+        for (const txStat of stats) {
             try {
                 const txReceipt = await provider.waitForTransaction(
                     txStat.txHash,
@@ -98,7 +98,7 @@ class StatCollector {
         if (txFetchErrors.length > 0) {
             Logger.warn('Errors encountered during receipts fetch:');
 
-            for (let err of txFetchErrors) {
+            for (const err of txFetchErrors) {
                 Logger.error(err.message);
             }
         }
@@ -108,8 +108,8 @@ class StatCollector {
         stats: TxStats[],
         provider: Provider
     ): Promise<Map<number, BlockInfo>> {
-        let blockSet: Set<number> = new Set<number>();
-        for (let s of stats) {
+        const blockSet: Set<number> = new Set<number>();
+        for (const s of stats) {
             blockSet.add(s.block);
         }
 
@@ -127,7 +127,7 @@ class StatCollector {
         });
 
         const blocksMap: Map<number, BlockInfo> = new Map<number, BlockInfo>();
-        for (let block of blockSet.keys()) {
+        for (const block of blockSet.keys()) {
             try {
                 const fetchedInfo = await provider.getBlock(block);
 
@@ -155,7 +155,7 @@ class StatCollector {
         if (blockFetchErrors.length > 0) {
             Logger.warn('Errors encountered during block info fetch:');
 
-            for (let err of blockFetchErrors) {
+            for (const err of blockFetchErrors) {
                 Logger.error(err.message);
             }
         }
@@ -173,7 +173,7 @@ class StatCollector {
         const blockTimeMap: Map<number, number> = new Map<number, number>();
         const uniqueBlocks = new Set<number>();
 
-        for (let stat of stats) {
+        for (const stat of stats) {
             if (stat.block == 0) {
                 continue;
             }

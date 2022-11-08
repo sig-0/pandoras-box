@@ -3,7 +3,7 @@ import { JsonRpcProvider, Provider } from '@ethersproject/providers';
 import { formatEther } from '@ethersproject/units';
 import { Wallet } from '@ethersproject/wallet';
 import { SingleBar } from 'cli-progress';
-import Table from 'cli-table';
+import Table from 'cli-table3';
 import Heap from 'heap';
 import Logger from '../logger/logger';
 import { Runtime } from '../runtime/runtimes';
@@ -84,7 +84,7 @@ class Distributor {
         }
 
         // Get a list of accounts that can be funded
-        let fundableAccounts = await this.getFundableAccounts(
+        const fundableAccounts = await this.getFundableAccounts(
             baseCosts,
             shortAddresses
         );
@@ -194,7 +194,7 @@ class Distributor {
         initialSet: Heap<distributeAccount>
     ): Promise<distributeAccount[]> {
         // Check if the root wallet has enough funds to distribute
-        let accountsToFund: distributeAccount[] = [];
+        const accountsToFund: distributeAccount[] = [];
         let distributorBalance = BigNumber.from(
             await this.ethWallet.getBalance()
         );

@@ -128,7 +128,7 @@ class EOARuntime {
             speed: 'N/A',
         });
 
-        for (let accIndex of accountIndexes) {
+        for (const accIndex of accountIndexes) {
             const wallet = Wallet.fromMnemonic(
                 this.mnemonic,
                 `m/44'/60'/0'/0/${accIndex}`
@@ -222,7 +222,7 @@ class EOARuntime {
             for (let i = 0; i < responses.length; i++) {
                 const content = responses[i].data;
 
-                for (let cnt of content) {
+                for (const cnt of content) {
                     if (cnt.hasOwnProperty('error')) {
                         // Error occurred during batch sends
                         batchErrors.push(cnt.error.message);
@@ -242,7 +242,7 @@ class EOARuntime {
         if (batchErrors.length > 0) {
             Logger.warn('Errors encountered during back sending:');
 
-            for (let err of batchErrors) {
+            for (const err of batchErrors) {
                 Logger.error(err);
             }
         }
@@ -318,7 +318,7 @@ class EOARuntime {
         if (failedTxnErrors.length > 0) {
             Logger.warn('Errors encountered during transaction signing:');
 
-            for (let err of failedTxnErrors) {
+            for (const err of failedTxnErrors) {
                 Logger.error(err.message);
             }
         }
