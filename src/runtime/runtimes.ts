@@ -1,5 +1,6 @@
 import { BigNumber } from '@ethersproject/bignumber';
-import { TxStats } from '../stats/collector';
+import { TransactionRequest } from '@ethersproject/providers';
+import { senderAccount } from './signer';
 
 export enum RuntimeType {
     EOA = 'EOA',
@@ -18,6 +19,12 @@ export interface Runtime {
     // Returns the value of each cycle transaction, if any
     GetValue(): BigNumber;
 
-    // Runs the stress-test cycle
-    Run(accountIndexes: number[], numTxs: number): Promise<TxStats[]>;
+    // Constructs the specific runtime transactions
+    ConstructTransactions(
+        accounts: senderAccount[],
+        numTxs: number
+    ): Promise<TransactionRequest[]>;
+
+    // Returns the start message for the user output
+    GetStartMessage(): string;
 }

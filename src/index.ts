@@ -3,6 +3,7 @@ import { Command } from 'commander';
 import { Distributor, Runtime } from './distributor/distributor';
 import Logger from './logger/logger';
 import Outputter from './outputter/outputter';
+import { Engine, EngineContext } from './runtime/engine';
 import EOARuntime from './runtime/eoa';
 import RuntimeErrors from './runtime/errors';
 import { RuntimeType } from './runtime/runtimes';
@@ -56,17 +57,17 @@ async function run() {
     const options = program.opts();
 
     const url = options.jsonRpc;
-    const transactions = options.transactions;
+    const transactionCount = options.transactions;
     const mode = options.mode;
     const mnemonic = options.mnemonic;
-    const subAccounts = options.SubAccounts;
-    const batch = options.batch;
+    const subAccountsCount = options.SubAccounts;
+    const batchSize = options.batch;
     const output = options.output;
 
     let runtime: Runtime;
     switch (mode) {
         case RuntimeType.EOA:
-            runtime = new EOARuntime(mnemonic, url, batch);
+            runtime = new EOARuntime(mnemonic, url);
 
             break;
         default:
@@ -76,16 +77,25 @@ async function run() {
     // Distribute the funds
     const distributor = new Distributor(
         mnemonic,
-        subAccounts,
-        transactions,
+        subAccountsCount,
+        transactionCount,
         runtime,
         url
     );
 
-    const indxs = await distributor.distribute();
+    const accountIndexes: number[] = await distributor.distribute();
 
-    // Run the runtime
-    const txStats = await runtime.Run(indxs, transactions);
+    // Run the specific runtime
+    const txStats = await Engine.Run(
+        runtime,
+        new EngineContext(
+            accountIndexes,
+            transactionCount,
+            batchSize,
+            mnemonic,
+            url
+        )
+    );
 
     // Collect the data
     const collectorData = await new StatCollector().generateStats(
