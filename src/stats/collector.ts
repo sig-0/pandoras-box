@@ -235,7 +235,7 @@ class StatCollector {
 
         sortedMap.forEach((info) => {
             utilizationTable.push([
-                `Block #${info.blockNum}`,
+                info.blockNum,
                 info.gasUsed,
                 info.gasLimit,
                 info.numTxs,

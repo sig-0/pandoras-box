@@ -6,6 +6,7 @@ import {
 } from '@ethersproject/providers';
 import { parseUnits } from '@ethersproject/units';
 import { Wallet } from '@ethersproject/wallet';
+import { SingleBar } from 'cli-progress';
 import Logger from '../logger/logger';
 import { senderAccount } from './signer';
 
@@ -64,6 +65,17 @@ class EOARuntime {
         Logger.info(`Chain ID: ${chainID}`);
         Logger.info(`Avg. gas price: ${gasPrice.toHexString()}`);
 
+        const constructBar = new SingleBar({
+            barCompleteChar: '\u2588',
+            barIncompleteChar: '\u2591',
+            hideCursor: true,
+        });
+
+        Logger.info('\nConstructing transactions...');
+        constructBar.start(numTx, 0, {
+            speed: 'N/A',
+        });
+
         const transactions: TransactionRequest[] = [];
 
         for (let i = 0; i < numTx; i++) {
@@ -84,7 +96,11 @@ class EOARuntime {
             });
 
             sender.incrNonce();
+            constructBar.increment();
         }
+
+        constructBar.stop();
+        Logger.success(`Successfully constructed ${numTx} transactions`);
 
         return transactions;
     }

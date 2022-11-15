@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
 import { Distributor, Runtime } from './distributor/distributor';
+import TokenDistributor from './distributor/tokenDistributor';
 import Logger from './logger/logger';
 import Outputter from './outputter/outputter';
 import { Engine, EngineContext } from './runtime/engine';
 import EOARuntime from './runtime/eoa';
+import ERC20Runtime from './runtime/erc20';
 import RuntimeErrors from './runtime/errors';
-import { RuntimeType } from './runtime/runtimes';
+import { RuntimeType, TokenRuntime } from './runtime/runtimes';
 import { StatCollector } from './stats/collector';
 
 async function run() {
@@ -39,8 +41,8 @@ async function run() {
             '2000'
         )
         .option(
-            '-m, --mode <mode>',
-            'The mode for the stress test. Possible modes: [EOA, ERC20, ERC721, GREETER]',
+            '--mode <mode>',
+            'The mode for the stress test. Possible modes: [EOA, ERC20, ERC721]',
             'EOA'
         )
         .option(
@@ -70,11 +72,18 @@ async function run() {
             runtime = new EOARuntime(mnemonic, url);
 
             break;
+        case RuntimeType.ERC20:
+            runtime = new ERC20Runtime(mnemonic, url);
+
+            // Initialize the runtime
+            await (runtime as TokenRuntime).Initialize();
+
+            break;
         default:
             throw RuntimeErrors.errUnknownRuntime;
     }
 
-    // Distribute the funds
+    // Distribute the native currency funds
     const distributor = new Distributor(
         mnemonic,
         subAccountsCount,
@@ -84,6 +93,19 @@ async function run() {
     );
 
     const accountIndexes: number[] = await distributor.distribute();
+
+    // Distribute the token funds, if any
+    if (mode === RuntimeType.ERC20) {
+        const tokenDistributor = new TokenDistributor(
+            mnemonic,
+            accountIndexes,
+            transactionCount,
+            runtime as TokenRuntime
+        );
+
+        // Start the distribution
+        await tokenDistributor.distributeTokens();
+    }
 
     // Run the specific runtime
     const txStats = await Engine.Run(

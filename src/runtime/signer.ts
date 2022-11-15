@@ -60,7 +60,7 @@ class Signer {
             speed: 'N/A',
         });
 
-        let accounts: senderAccount[] = [];
+        const accounts: senderAccount[] = [];
         for (let i = 0; i < walletsToInit; i++) {
             const accIndex = accountIndexes[i];
 
@@ -116,6 +116,7 @@ class Signer {
         }
 
         signBar.stop();
+        Logger.success(`Successfully signed ${signedTxs.length} transactions`);
 
         if (failedTxnSignErrors.length > 0) {
             Logger.warn('Errors encountered during transaction signing:');

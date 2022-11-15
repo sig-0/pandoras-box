@@ -244,4 +244,4 @@ class Distributor {
     }
 }
 
-export { Distributor, Runtime };
+export { Distributor, Runtime, distributeAccount };
