@@ -7,8 +7,13 @@ import Outputter from './outputter/outputter';
 import { Engine, EngineContext } from './runtime/engine';
 import EOARuntime from './runtime/eoa';
 import ERC20Runtime from './runtime/erc20';
+import ERC721Runtime from './runtime/erc721';
 import RuntimeErrors from './runtime/errors';
-import { RuntimeType, TokenRuntime } from './runtime/runtimes';
+import {
+    InitializedRuntime,
+    RuntimeType,
+    TokenRuntime,
+} from './runtime/runtimes';
 import { StatCollector } from './stats/collector';
 
 async function run() {
@@ -76,7 +81,14 @@ async function run() {
             runtime = new ERC20Runtime(mnemonic, url);
 
             // Initialize the runtime
-            await (runtime as TokenRuntime).Initialize();
+            await (runtime as InitializedRuntime).Initialize();
+
+            break;
+        case RuntimeType.ERC721:
+            runtime = new ERC721Runtime(mnemonic, url);
+
+            // Initialize the runtime
+            await (runtime as InitializedRuntime).Initialize();
 
             break;
         default:

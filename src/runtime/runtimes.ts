@@ -29,10 +29,12 @@ export interface Runtime {
     GetStartMessage(): string;
 }
 
-export interface TokenRuntime extends Runtime {
+export interface InitializedRuntime extends Runtime {
     // Initializes the runtime
     Initialize(): Promise<void>;
+}
 
+export interface TokenRuntime extends Runtime, InitializedRuntime {
     // Returns the transfer token value
     GetTransferValue(): number;
 
@@ -48,3 +50,5 @@ export interface TokenRuntime extends Runtime {
     // Funds the specified account
     FundAccount(address: string, amount: number): Promise<void>;
 }
+
+export interface NFTRuntime extends Runtime, InitializedRuntime {}

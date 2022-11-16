@@ -71,7 +71,7 @@ class EOARuntime {
             hideCursor: true,
         });
 
-        Logger.info('\nConstructing transactions...');
+        Logger.info('\nConstructing value transfer transactions...');
         constructBar.start(numTx, 0, {
             speed: 'N/A',
         });

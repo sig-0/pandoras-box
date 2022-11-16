@@ -7,12 +7,12 @@ import {
 } from '@ethersproject/providers';
 import { Wallet } from '@ethersproject/wallet';
 import { SingleBar } from 'cli-progress';
-import ZexCoin from '../contracts/ZexCoinERC20.json';
+import ZexNFTs from '../contracts/ZexNFTs.json';
 import Logger from '../logger/logger';
 import RuntimeErrors from './errors';
 import { senderAccount } from './signer';
 
-class ERC20Runtime {
+class ERC721Runtime {
     mnemonic: string;
     url: string;
     provider: Provider;
@@ -21,11 +21,10 @@ class ERC20Runtime {
     gasPrice: BigNumber = BigNumber.from(0);
 
     defaultValue: BigNumber = BigNumber.from(0);
-    defaultTransferValue = 1;
 
-    totalSupply = 500000000000;
-    coinName = 'Zex Coin';
-    coinSymbol = 'ZEX';
+    nftName = 'ZEXTokens';
+    nftSymbol = 'ZEXes';
+    nftURL = 'https://really-valuable-nft-page.io';
 
     contract: Contract | undefined;
 
@@ -43,21 +42,19 @@ class ERC20Runtime {
     }
 
     async Initialize() {
-        // Initialize it
-        this.contract = await this.deployERC20();
+        this.contract = await this.deployERC721();
     }
 
-    async deployERC20(): Promise<Contract> {
+    async deployERC721(): Promise<Contract> {
         const contractFactory = new ContractFactory(
-            ZexCoin.abi,
-            ZexCoin.bytecode,
+            ZexNFTs.abi,
+            ZexNFTs.bytecode,
             this.baseDeployer
         );
 
         const contract = await contractFactory.deploy(
-            this.totalSupply,
-            this.coinName,
-            this.coinSymbol
+            this.nftName,
+            this.nftSymbol
         );
 
         await contract.deployTransaction.wait();
@@ -71,43 +68,15 @@ class ERC20Runtime {
         }
 
         // Estimate a simple transfer transaction
-        this.gasEstimation = await this.contract.estimateGas.transfer(
-            Wallet.fromMnemonic(this.mnemonic, `m/44'/60'/0'/0/1`).address,
-            this.defaultTransferValue
+        this.gasEstimation = await this.contract.estimateGas.createNFT(
+            this.nftURL
         );
 
         return this.gasEstimation;
     }
 
-    GetTransferValue(): number {
-        return this.defaultTransferValue;
-    }
-
-    async GetTokenBalance(address: string): Promise<number> {
-        if (!this.contract) {
-            throw RuntimeErrors.errRuntimeNotInitialized;
-        }
-
-        return await this.contract.balanceOf(address);
-    }
-
-    async GetSupplierBalance(): Promise<number> {
-        return this.GetTokenBalance(this.baseDeployer.address);
-    }
-
-    async FundAccount(to: string, amount: number): Promise<void> {
-        if (!this.contract) {
-            throw RuntimeErrors.errRuntimeNotInitialized;
-        }
-
-        const tx = await this.contract.transfer(to, amount);
-
-        // Wait for the transfer transaction to be mined
-        await tx.wait();
-    }
-
-    GetTokenSymbol(): string {
-        return this.coinSymbol;
+    GetNFTSymbol(): string {
+        return this.nftSymbol;
     }
 
     GetValue(): BigNumber {
@@ -140,7 +109,7 @@ class ERC20Runtime {
             hideCursor: true,
         });
 
-        Logger.info(`\nConstructing ${this.coinName} transfer transactions...`);
+        Logger.info(`\nConstructing ${this.nftName} mint transactions...`);
         constructBar.start(numTx, 0, {
             speed: 'N/A',
         });
@@ -149,10 +118,7 @@ class ERC20Runtime {
 
         for (let i = 0; i < numTx; i++) {
             const senderIndex = i % accounts.length;
-            const receiverIndex = (i + 1) % accounts.length;
-
             const sender = accounts[senderIndex];
-            const receiver = accounts[receiverIndex];
 
             const wallet = Wallet.fromMnemonic(
                 this.mnemonic,
@@ -161,13 +127,12 @@ class ERC20Runtime {
 
             const contract = new Contract(
                 this.contract.address,
-                ZexCoin.abi,
+                ZexNFTs.abi,
                 wallet
             );
 
-            const transaction = await contract.populateTransaction.transfer(
-                receiver.getAddress(),
-                this.defaultTransferValue
+            const transaction = await contract.populateTransaction.createNFT(
+                this.nftURL
             );
 
             // Override the defaults
@@ -190,8 +155,8 @@ class ERC20Runtime {
     }
 
     GetStartMessage(): string {
-        return '\n⚡️ ERC20 token transfers initialized ️⚡️\n';
+        return '\n⚡️ ERC721 NFT mints initialized ️⚡️\n';
     }
 }
 
-export default ERC20Runtime;
+export default ERC721Runtime;
