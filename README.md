@@ -22,18 +22,12 @@ A small and simple stress testing tool for Ethereum-compatible blockchain client
 Options:
   -V, --version                        output the version number
   -url, --json-rpc <json-rpc-address>  The URL of the JSON-RPC for the client
-  -m, --mnemonic <mnemonic>            The mnemonic used to generate spam
-                                       accounts
-  -s, -sub-accounts <sub-accounts>     The number of sub-accounts that will
-                                       send out transactions (default: "10")
-  -t, --transactions <transactions>    The total number of transactions to be
-                                       emitted (default: "2000")
-  --mode <mode>                    The mode for the stress test. Possible
-                                       modes: [EOA, ERC20, ERC721, GREETER]
-                                       (default: "EOA")
+  -m, --mnemonic <mnemonic>            The mnemonic used to generate spam accounts
+  -s, -sub-accounts <sub-accounts>     The number of sub-accounts that will send out transactions (default: "10")
+  -t, --transactions <transactions>    The total number of transactions to be emitted (default: "2000")
+  --mode <mode>                        The mode for the stress test. Possible modes: [EOA, ERC20, ERC721] (default: "EOA")
   -o, --output <output-path>           The output path for the results JSON
-  -b, --batch <batch>                  The batch size of JSON-RPC transactions
-                                       (default: "20")
+  -b, --batch <batch>                  The batch size of JSON-RPC transactions (default: "20")
   -h, --help                           display help for command
 ```
 
