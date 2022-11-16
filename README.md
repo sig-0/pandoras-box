@@ -63,7 +63,7 @@ This mode sends out transactions with a certain value transfer between subaccoun
 The `ERC20` mode deploys an ERC20 token to the blockchain network being tested before starting the cycle run.
 When the cycle run begins, the transactions that are sent out are ERC20 token transfers between subaccounts.
 
-## ERC721 ⚠️WIP
+## ERC721
 
 The `ERC721` mode deploys an ERC721 NFT contract to the blockchain network being tested before starting the cycle run.
 When the cycle run begins, the transactions that are sent out are ERC721 NFT mints.
