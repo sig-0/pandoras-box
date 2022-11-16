@@ -28,7 +28,7 @@ Options:
                                        send out transactions (default: "10")
   -t, --transactions <transactions>    The total number of transactions to be
                                        emitted (default: "2000")
-  -m, --mode <mode>                    The mode for the stress test. Possible
+  --mode <mode>                    The mode for the stress test. Possible
                                        modes: [EOA, ERC20, ERC721, GREETER]
                                        (default: "EOA")
   -o, --output <output-path>           The output path for the results JSON
