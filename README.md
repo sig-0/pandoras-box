@@ -5,12 +5,12 @@ It is made for Ethereum-compatible blockchain networks, such as Ethereum network
 
 The key features of `pandoras-box` are the following:
 
--   ✅ Supports transaction batching, making stress testing orchestration hassle-free
--   ✅ Supports multiple stress testing modes
--   ✅ Supports distributed transaction stress testing through subaccounts
--   ✅ Automatic subaccount fund top-off
--   ✅ Has detailed statistics calculation
--   ✅ Has support for outputting cycle-run results
+- ✅ Supports transaction batching, making stress testing orchestration hassle-free
+- ✅ Supports multiple stress testing modes
+- ✅ Supports distributed transaction stress testing through subaccounts
+- ✅ Automatic subaccount fund top-off
+- ✅ Has detailed statistics calculation
+- ✅ Has support for outputting cycle-run results
 
 # Usage Example
 
@@ -61,16 +61,3 @@ When the cycle run begins, the transactions that are sent out are ERC20 token tr
 
 The `ERC721` mode deploys an ERC721 NFT contract to the blockchain network being tested before starting the cycle run.
 When the cycle run begins, the transactions that are sent out are ERC721 NFT mints.
-
-# License
-
-Copyright 2022 Trapesys
-
-Licensed under the Apache License, Version 2.0 (the “License”); you may not use this file except in compliance with the
-License. You may obtain a copy of the License at
-
-## http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an “
-AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific
-language governing permissions and limitations under the License.
