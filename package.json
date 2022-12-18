@@ -2,8 +2,9 @@
     "name": "pandoras-box",
     "version": "1.0.0",
     "description": "A small and simple stress testing tool for Ethereum-compatible blockchain networks",
-    "main": "index.ts",
-    "author": "zivkovicmilos",
+    "main": "./bin/index.js",
+    "types": "./bin/index.d.ts",
+    "author": "Milos Zivkovic (zivkovicmilos)",
     "license": "Apache-2.0",
     "devDependencies": {
         "@types/cli-progress": "^3.11.0",
@@ -26,6 +27,13 @@
     "bin": {
         "pandoras-box": "./bin/index.js"
     },
+    "keywords": [
+        "pandora",
+        "pandoras box",
+        "pandoras-box",
+        "ethereum",
+        "stress test"
+    ],
     "dependencies": {
         "@ethersproject/contracts": "^5.7.0",
         "@ethersproject/providers": "^5.7.2",
@@ -39,5 +47,13 @@
         "cli-table3": "^0.6.3",
         "commander": "^9.4.1",
         "heap": "^0.2.7"
-    }
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/madz-lab/pandoras-box.git"
+    },
+    "homepage": "https://github.com/madz-lab/pandoras-box#readme",
+    "files": [
+        "bin/**/*"
+    ]
 }

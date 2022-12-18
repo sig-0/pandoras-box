@@ -1,18 +1,46 @@
 # Overview
 
-`pandoras-box` is a small transaction stress testing tool, part of any Ethereum client developer's toolkit.
-It is made for Ethereum-compatible blockchain networks, such as Ethereum networks, Polygon Edge, HyperLedger and others.
+`pandoras-box` is a command-line interface (CLI) tool for running stress tests on Ethereum-compatible blockchain
+networks, such as Ethereum, Polygon, Hyperledger, and others. It is designed to be an essential tool for Ethereum client
+developers looking to test the performance of their blockchain under high load.
 
-The key features of `pandoras-box` are the following:
+## Key features
 
--   ✅ Supports transaction batching, making stress testing orchestration hassle-free
--   ✅ Supports multiple stress testing modes
--   ✅ Supports distributed transaction stress testing through subaccounts
--   ✅ Automatic subaccount fund top-off
--   ✅ Has detailed statistics calculation
--   ✅ Has support for outputting cycle-run results
+-   🚀 Batch transactions to make stress testing easier to orchestrate
+-   🛠 Multiple stress testing modes: EOA, ERC20, and ERC721
+-   💰 Distributed transaction stress testing through subaccounts
+-   💸 Automatic subaccount fund top-up
+-   📊 Detailed statistics calculation
+-   📈 Output cycle run results to a file
 
-# Usage Example
+# Usage example
+
+To run a stress test with `pandoras-box`, you will need to have Node.js and npm / yarn installed on your system.
+
+1. Install `pandoras-box` using npm / yarn:
+
+```bash
+npm install -g pandoras-box
+```
+
+2. Run the stress test by specifying the options for the test:
+
+```bash
+pandoras-box -url http://127.0.0.1:10002 -m "erupt oven loud noise rug proof sunset gas table era dizzy vault" -t 100 -b 5000 -o ./myOutput.json
+```
+
+This will run a stress test on the Ethereum-compatible blockchain network with a JSON-RPC endpoint
+at `http://127.0.0.1:10002`, using the mnemonic `erupt oven loud noise rug proof sunset gas table era dizzy vault` to
+generate the subaccounts. The test will send out 100 transactions in maximum batches of 5000, and the results will be
+output to a file called `myOutput.json`.
+
+For any stress test run, there need to be funds on a specific address.
+The address that is in charge of funds distribution to subaccounts is the **first address** with index 0 in the
+specified mnemonic. Make sure this address has an appropriate amount of funds before running the stress test.
+
+![Banner](.github/demo.gif)
+
+`pandoras-box` supports the following options:
 
 ```bash
 Usage: pandoras-box [options]
@@ -31,20 +59,6 @@ Options:
   -h, --help                           display help for command
 ```
 
-For any stress test run, there need to be funds on a specific address.
-The address that is in charge of funds distribution to subaccounts is the **first address** with index 0 in the
-specified mnemonic.
-
-To initiate a 100 transaction `EOA` stress test run on an Ethereum-compatible blockchain network with a JSON-RPC
-endpoint
-at `http://127.0.0.1:10002`, with batch limits being `5000`, and outputting the result to a file:
-
-```bash
-pandoras-box -url http://127.0.0.1:10002 -m "erupt oven loud noise rug proof sunset gas table era dizzy vault" -t 100 -b 5000 -o ./myOutput.json
-```
-
-![Banner](.github/demo.gif)
-
 # Modes
 
 ## EOA
@@ -61,16 +75,3 @@ When the cycle run begins, the transactions that are sent out are ERC20 token tr
 
 The `ERC721` mode deploys an ERC721 NFT contract to the blockchain network being tested before starting the cycle run.
 When the cycle run begins, the transactions that are sent out are ERC721 NFT mints.
-
-# License
-
-Copyright 2022 Trapesys
-
-Licensed under the Apache License, Version 2.0 (the “License”); you may not use this file except in compliance with the
-License. You may obtain a copy of the License at
-
-## http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an “
-AS IS” BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific
-language governing permissions and limitations under the License.
