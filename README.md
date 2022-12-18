@@ -20,7 +20,7 @@ To run a stress test with `pandoras-box`, you will need to have Node.js and npm 
 1. Install `pandoras-box` using npm / yarn:
 
 ```bash
-npm install -g pandoras-box
+npm install -g @zivkovicmilos/pandoras-box
 ```
 
 2. Run the stress test by specifying the options for the test:
