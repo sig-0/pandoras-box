@@ -55,5 +55,10 @@
     "homepage": "https://github.com/madz-lab/pandoras-box#readme",
     "files": [
         "bin/**/*"
-    ]
+    ],
+    "private": false,
+    "publishConfig": {
+        "access": "public",
+        "registry": "https://registry.npmjs.org/"
+    }
 }
