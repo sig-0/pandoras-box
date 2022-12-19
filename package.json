@@ -22,7 +22,9 @@
         "lint": "eslint '**/*.ts' --fix",
         "prettier": "prettier --write .",
         "build": "yarn tsc && yarn chmod",
-        "chmod": "chmod u+x ./bin/index.js"
+        "chmod": "chmod u+x ./bin/index.js",
+        "prepare": "yarn build",
+        "prepublishOnly": "yarn lint && yarn prettier"
     },
     "bin": {
         "pandoras-box": "./bin/index.js"
