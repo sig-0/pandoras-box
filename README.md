@@ -59,6 +59,35 @@ Options:
   -h, --help                           display help for command
 ```
 
+## Installing locally
+
+`pandoras-box` can be installed locally using the git repository. A recent version of Node.js and yarn is required.
+
+1. Clone the git repository
+
+```bash
+git clone https://github.com/madz-lab/pandoras-box.git
+```
+
+2. Build the source (from the repository root)
+
+```bash
+yarn build
+```
+
+The `yarn build` command will compile the TypeScript files locally into the `bin` folder, and run a `chmod` command
+for enabling execution.
+
+3. Link the command (from the repository root)
+
+```bash
+yarn link
+```
+
+The `yarn link` command will link the `index.js` file to the `pandoras-box` command, so it can be executed from
+anywhere.
+Local code can now be modified, and built again - changes made will be reflected on future command runs.
+
 # Modes
 
 ## EOA
