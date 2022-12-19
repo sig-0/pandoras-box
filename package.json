@@ -1,6 +1,6 @@
 {
     "name": "@zivkovicmilos/pandoras-box",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "description": "A small and simple stress testing tool for Ethereum-compatible blockchain networks",
     "main": "./bin/index.js",
     "types": "./bin/index.d.ts",
