@@ -1,6 +1,6 @@
 {
     "name": "@madz-lab/pandoras-box",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "description": "A small and simple stress testing tool for Ethereum-compatible blockchain networks",
     "main": "./bin/index.js",
     "types": "./bin/index.d.ts",
@@ -54,7 +54,7 @@
         "type": "git",
         "url": "git+https://github.com/madz-lab/pandoras-box.git"
     },
-    "homepage": "https://github.com/madz-lab/pandoras-box#readme",
+    "homepage": "https://docs.madz-lab.com/pandoras-box",
     "files": [
         "bin/**/*"
     ],
