@@ -120,7 +120,7 @@ async function run() {
     }
 
     // Run the specific runtime
-    const txStats = await Engine.Run(
+    const txHashes = await Engine.Run(
         runtime,
         new EngineContext(
             accountIndexes,
@@ -133,9 +133,10 @@ async function run() {
 
     // Collect the data
     const collectorData = await new StatCollector().generateStats(
-        txStats,
+        txHashes,
         mnemonic,
-        url
+        url,
+        batchSize
     );
 
     // Output the data if needed
