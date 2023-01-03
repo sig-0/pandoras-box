@@ -30,7 +30,7 @@ class BlockInfo {
         createdAt: number,
         numTxs: number,
         gasUsed: BigNumber,
-        gasLimit: BigNumber,
+        gasLimit: BigNumber
     ) {
         this.blockNum = blockNum;
         this.createdAt = createdAt;
@@ -75,7 +75,7 @@ class StatCollector {
     async gatherTransactionReceipts(
         txHashes: string[],
         batchSize: number,
-        provider: Provider,
+        provider: Provider
     ): Promise<txStats[]> {
         Logger.info('Gathering transaction receipts...');
 
@@ -105,7 +105,7 @@ class StatCollector {
             const result = await this.fetchTransactionReceipts(
                 remainingTransactions,
                 batchSize,
-                providerURL,
+                providerURL
             );
 
             // Save any fetch errors
@@ -118,11 +118,13 @@ class StatCollector {
             remainingTransactions = result.remaining;
 
             // Save the succeeded transactions
-            succeededTransactions = succeededTransactions.concat(result.succeeded);
+            succeededTransactions = succeededTransactions.concat(
+                result.succeeded
+            );
 
             // Update the user loading bar
             receiptBar.increment(
-                succeededTransactions.length - receiptBarProgress,
+                succeededTransactions.length - receiptBarProgress
             );
             receiptBarProgress = succeededTransactions.length;
 
@@ -137,7 +139,7 @@ class StatCollector {
 
             // Wait for a block to be mined on the network before asking
             // for the receipts again
-            await new Promise(resolve => {
+            await new Promise((resolve) => {
                 provider.once('block', () => {
                     resolve(null);
                 });
@@ -152,16 +154,20 @@ class StatCollector {
             const txReceipt = await provider.waitForTransaction(
                 txHash,
                 1,
-                30 * 1000, // 30s per transaction
+                30 * 1000 // 30s per transaction
             );
 
             receiptBar.increment(1);
 
             if (txReceipt.status != undefined && txReceipt.status == 0) {
-                throw new Error(`transaction ${txReceipt.transactionHash} failed on execution`);
+                throw new Error(
+                    `transaction ${txReceipt.transactionHash} failed on execution`
+                );
             }
 
-            succeededTransactions.push(new txStats(txHash, txReceipt.blockNumber));
+            succeededTransactions.push(
+                new txStats(txHash, txReceipt.blockNumber)
+            );
         }
 
         receiptBar.stop();
@@ -181,10 +187,13 @@ class StatCollector {
     async fetchTransactionReceipts(
         txHashes: string[],
         batchSize: number,
-        url: string,
+        url: string
     ): Promise<txBatchResult> {
         // Create the batches for transaction receipts
-        const batches: string[][] = Batcher.generateBatches<string>(txHashes, batchSize);
+        const batches: string[][] = Batcher.generateBatches<string>(
+            txHashes,
+            batchSize
+        );
         const succeeded: txStats[] = [];
         const remaining: string[] = [];
         const batchErrors: string[] = [];
@@ -214,13 +223,17 @@ class StatCollector {
                     },
                     data: '[' + singleRequests + ']',
                 });
-            }),
+            })
         );
 
         for (let batchIndex = 0; batchIndex < responses.length; batchIndex++) {
             const data = responses[batchIndex].data;
 
-            for (let txHashIndex = 0; txHashIndex < data.length; txHashIndex++) {
+            for (
+                let txHashIndex = 0;
+                txHashIndex < data.length;
+                txHashIndex++
+            ) {
                 const batchItem = data[txHashIndex];
 
                 if (!batchItem.result) {
@@ -238,14 +251,17 @@ class StatCollector {
 
                 if (batchItem.result.status == '0x0') {
                     // Transaction failed
-                    throw new Error(`transaction ${batchItem.result.transactionHash} failed on execution`);
+                    throw new Error(
+                        `transaction ${batchItem.result.transactionHash} failed on execution`
+                    );
                 }
 
-
-                succeeded.push(new txStats(
-                    batchItem.result.transactionHash,
-                    batchItem.result.blockNumber,
-                ));
+                succeeded.push(
+                    new txStats(
+                        batchItem.result.transactionHash,
+                        batchItem.result.blockNumber
+                    )
+                );
             }
         }
 
@@ -254,7 +270,7 @@ class StatCollector {
 
     async fetchBlockInfo(
         stats: txStats[],
-        provider: Provider,
+        provider: Provider
     ): Promise<Map<number, BlockInfo>> {
         const blockSet: Set<number> = new Set<number>();
         for (const s of stats) {
@@ -288,8 +304,8 @@ class StatCollector {
                         fetchedInfo.timestamp,
                         fetchedInfo.transactions.length,
                         fetchedInfo.gasUsed,
-                        fetchedInfo.gasLimit,
-                    ),
+                        fetchedInfo.gasLimit
+                    )
                 );
             } catch (e: any) {
                 blockFetchErrors.push(e);
@@ -346,14 +362,14 @@ class StatCollector {
 
                 if (!blockTimeMap.has(currentBlockNum)) {
                     const currentBlock = await provider.getBlock(
-                        currentBlockNum,
+                        currentBlockNum
                     );
 
                     blockTimeMap.set(currentBlockNum, currentBlock.timestamp);
                 }
 
                 const currentBlock = blockTimeMap.get(
-                    currentBlockNum,
+                    currentBlockNum
                 ) as number;
 
                 totalTime += Math.round(Math.abs(currentBlock - parentBlock));
@@ -378,7 +394,7 @@ class StatCollector {
         });
 
         const sortedMap = new Map(
-            [...blockInfoMap.entries()].sort((a, b) => a[0] - b[0]),
+            [...blockInfoMap.entries()].sort((a, b) => a[0] - b[0])
         );
 
         sortedMap.forEach((info) => {
@@ -419,7 +435,7 @@ class StatCollector {
         txHashes: string[],
         mnemonic: string,
         url: string,
-        batchSize: number,
+        batchSize: number
     ): Promise<CollectorData> {
         if (txHashes.length == 0) {
             Logger.warn('No stat data to display');
@@ -435,7 +451,7 @@ class StatCollector {
         const txStats = await this.gatherTransactionReceipts(
             txHashes,
             batchSize,
-            provider,
+            provider
         );
 
         // Fetch block info

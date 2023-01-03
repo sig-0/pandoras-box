@@ -7,7 +7,7 @@ class Batcher {
     // input set
     static generateBatches<ItemType>(
         items: ItemType[],
-        batchSize: number,
+        batchSize: number
     ): ItemType[][] {
         const batches: ItemType[][] = [];
 
@@ -37,10 +37,13 @@ class Batcher {
     static async batchTransactions(
         signedTxs: string[],
         batchSize: number,
-        url: string,
+        url: string
     ): Promise<string[]> {
         // Generate the transaction hash batches
-        const batches: string[][] = Batcher.generateBatches<string>(signedTxs, batchSize);
+        const batches: string[][] = Batcher.generateBatches<string>(
+            signedTxs,
+            batchSize
+        );
 
         Logger.info('Sending transactions in batches...');
 
@@ -85,7 +88,7 @@ class Batcher {
                         },
                         data: '[' + singleRequests + ']',
                     });
-                }),
+                })
             );
 
             for (let i = 0; i < responses.length; i++) {
@@ -117,7 +120,7 @@ class Batcher {
         }
 
         Logger.success(
-            `${batches.length} ${batches.length > 1 ? 'batches' : 'batch'} sent`,
+            `${batches.length} ${batches.length > 1 ? 'batches' : 'batch'} sent`
         );
 
         return txHashes;

@@ -17,7 +17,7 @@ class EngineContext {
         numTxs: number,
         batchSize: number,
         mnemonic: string,
-        url: string,
+        url: string
     ) {
         this.accountIndexes = accountIndexes;
         this.numTxs = numTxs;
@@ -36,7 +36,7 @@ class Engine {
         // Get the account metadata
         const accounts: senderAccount[] = await signer.getSenderAccounts(
             ctx.accountIndexes,
-            ctx.numTxs,
+            ctx.numTxs
         );
 
         // Construct the transactions
@@ -46,7 +46,7 @@ class Engine {
         // Sign the transactions
         const signedTransactions = await signer.signTransactions(
             accounts,
-            rawTransactions,
+            rawTransactions
         );
 
         Logger.title(runtime.GetStartMessage());
@@ -55,7 +55,7 @@ class Engine {
         return Batcher.batchTransactions(
             signedTransactions,
             ctx.batchSize,
-            ctx.url,
+            ctx.url
         );
     }
 }

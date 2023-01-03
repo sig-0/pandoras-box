@@ -9,7 +9,11 @@ import EOARuntime from './runtime/eoa';
 import ERC20Runtime from './runtime/erc20';
 import ERC721Runtime from './runtime/erc721';
 import RuntimeErrors from './runtime/errors';
-import { InitializedRuntime, RuntimeType, TokenRuntime } from './runtime/runtimes';
+import {
+    InitializedRuntime,
+    RuntimeType,
+    TokenRuntime,
+} from './runtime/runtimes';
 import { StatCollector } from './stats/collector';
 
 async function run() {
@@ -18,42 +22,42 @@ async function run() {
     program
         .name('pandoras-box')
         .description(
-            'A small and simple stress testing tool for Ethereum-compatible blockchain clients ',
+            'A small and simple stress testing tool for Ethereum-compatible blockchain clients '
         )
         .version('1.0.0');
 
     program
         .requiredOption(
             '-url, --json-rpc <json-rpc-address>',
-            'The URL of the JSON-RPC for the client',
+            'The URL of the JSON-RPC for the client'
         )
         .requiredOption(
             '-m, --mnemonic <mnemonic>',
-            'The mnemonic used to generate spam accounts',
+            'The mnemonic used to generate spam accounts'
         )
         .option(
             '-s, -sub-accounts <sub-accounts>',
             'The number of sub-accounts that will send out transactions',
-            '10',
+            '10'
         )
         .option(
             '-t, --transactions <transactions>',
             'The total number of transactions to be emitted',
-            '2000',
+            '2000'
         )
         .option(
             '--mode <mode>',
             'The mode for the stress test. Possible modes: [EOA, ERC20, ERC721]',
-            'EOA',
+            'EOA'
         )
         .option(
             '-o, --output <output-path>',
-            'The output path for the results JSON',
+            'The output path for the results JSON'
         )
         .option(
             '-b, --batch <batch>',
             'The batch size of JSON-RPC transactions',
-            '20',
+            '20'
         )
         .parse();
 
@@ -97,7 +101,7 @@ async function run() {
         subAccountsCount,
         transactionCount,
         runtime,
-        url,
+        url
     );
 
     const accountIndexes: number[] = await distributor.distribute();
@@ -108,7 +112,7 @@ async function run() {
             mnemonic,
             accountIndexes,
             transactionCount,
-            runtime as TokenRuntime,
+            runtime as TokenRuntime
         );
 
         // Start the distribution
@@ -123,8 +127,8 @@ async function run() {
             transactionCount,
             batchSize,
             mnemonic,
-            url,
-        ),
+            url
+        )
     );
 
     // Collect the data
@@ -132,7 +136,7 @@ async function run() {
         txHashes,
         mnemonic,
         url,
-        batchSize,
+        batchSize
     );
 
     // Output the data if needed
