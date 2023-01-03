@@ -1,20 +1,46 @@
 import axios from 'axios';
 import { SingleBar } from 'cli-progress';
 import Logger from '../logger/logger';
-import { TxStats } from '../stats/collector';
 
 class Batcher {
-    static async batchTransactions(
-        signedTxs: string[],
+    // Generates batches of items based on the passed in
+    // input set
+    static generateBatches<ItemType>(
+        items: ItemType[],
         batchSize: number,
-        url: string
-    ): Promise<TxStats[]> {
-        // Find how many batches need to be sent out
-        const batches: string[][] = [];
-        let numBatches: number = Math.ceil(signedTxs.length / batchSize);
+    ): ItemType[][] {
+        const batches: ItemType[][] = [];
+
+        // Find the required number of batches
+        let numBatches: number = Math.ceil(items.length / batchSize);
         if (numBatches == 0) {
             numBatches = 1;
         }
+
+        // Initialize empty batches
+        for (let i = 0; i < numBatches; i++) {
+            batches[i] = [];
+        }
+
+        let currentBatch = 0;
+        for (const item of items) {
+            batches[currentBatch].push(item);
+
+            if (batches[currentBatch].length % batchSize == 0) {
+                currentBatch++;
+            }
+        }
+
+        return batches;
+    }
+
+    static async batchTransactions(
+        signedTxs: string[],
+        batchSize: number,
+        url: string,
+    ): Promise<string[]> {
+        // Generate the transaction hash batches
+        const batches: string[][] = Batcher.generateBatches<string>(signedTxs, batchSize);
 
         Logger.info('Sending transactions in batches...');
 
@@ -24,31 +50,14 @@ class Batcher {
             hideCursor: true,
         });
 
-        batchBar.start(numBatches, 0, {
+        batchBar.start(batches.length, 0, {
             speed: 'N/A',
         });
 
-        const txStats: TxStats[] = [];
+        const txHashes: string[] = [];
         const batchErrors: string[] = [];
 
         try {
-            for (let i = 0; i < numBatches; i++) {
-                batches[i] = [];
-            }
-
-            let leftoverTxns = signedTxs.length;
-            let txnIndex = 0;
-
-            let currentBatch = 0;
-            while (leftoverTxns > 0) {
-                batches[currentBatch].push(signedTxs[txnIndex++]);
-                leftoverTxns -= 1;
-
-                if (batches[currentBatch].length % batchSize == 0) {
-                    currentBatch++;
-                }
-            }
-
             let nextIndx = 0;
             const responses = await Promise.all(
                 batches.map((item) => {
@@ -76,7 +85,7 @@ class Batcher {
                         },
                         data: '[' + singleRequests + ']',
                     });
-                })
+                }),
             );
 
             for (let i = 0; i < responses.length; i++) {
@@ -90,7 +99,7 @@ class Batcher {
                         continue;
                     }
 
-                    txStats.push(new TxStats(cnt.result));
+                    txHashes.push(cnt.result);
                 }
             }
         } catch (e: any) {
@@ -100,7 +109,7 @@ class Batcher {
         batchBar.stop();
 
         if (batchErrors.length > 0) {
-            Logger.warn('Errors encountered during back sending:');
+            Logger.warn('Errors encountered during batch sending:');
 
             for (const err of batchErrors) {
                 Logger.error(err);
@@ -108,10 +117,10 @@ class Batcher {
         }
 
         Logger.success(
-            `${numBatches} ${numBatches > 1 ? 'batches' : 'batch'} sent`
+            `${batches.length} ${batches.length > 1 ? 'batches' : 'batch'} sent`,
         );
 
-        return txStats;
+        return txHashes;
     }
 }
 

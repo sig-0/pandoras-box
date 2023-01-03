@@ -1,6 +1,5 @@
 import { TransactionRequest } from '@ethersproject/providers';
 import Logger from '../logger/logger';
-import { TxStats } from '../stats/collector';
 import Batcher from './batcher';
 import { Runtime } from './runtimes';
 import { senderAccount, Signer } from './signer';
@@ -18,7 +17,7 @@ class EngineContext {
         numTxs: number,
         batchSize: number,
         mnemonic: string,
-        url: string
+        url: string,
     ) {
         this.accountIndexes = accountIndexes;
         this.numTxs = numTxs;
@@ -30,14 +29,14 @@ class EngineContext {
 }
 
 class Engine {
-    static async Run(runtime: Runtime, ctx: EngineContext): Promise<TxStats[]> {
+    static async Run(runtime: Runtime, ctx: EngineContext): Promise<string[]> {
         // Initialize transaction signer
         const signer: Signer = new Signer(ctx.mnemonic, ctx.url);
 
         // Get the account metadata
         const accounts: senderAccount[] = await signer.getSenderAccounts(
             ctx.accountIndexes,
-            ctx.numTxs
+            ctx.numTxs,
         );
 
         // Construct the transactions
@@ -47,7 +46,7 @@ class Engine {
         // Sign the transactions
         const signedTransactions = await signer.signTransactions(
             accounts,
-            rawTransactions
+            rawTransactions,
         );
 
         Logger.title(runtime.GetStartMessage());
@@ -56,7 +55,7 @@ class Engine {
         return Batcher.batchTransactions(
             signedTransactions,
             ctx.batchSize,
-            ctx.url
+            ctx.url,
         );
     }
 }

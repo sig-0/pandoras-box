@@ -1,15 +1,18 @@
 import { BigNumber } from '@ethersproject/bignumber';
 import { JsonRpcProvider, Provider } from '@ethersproject/providers';
+import axios, { AxiosResponse } from 'axios';
 import { SingleBar } from 'cli-progress';
 import Table from 'cli-table3';
 import Logger from '../logger/logger';
+import Batcher from '../runtime/batcher';
 
-class TxStats {
+class txStats {
     txHash: string;
     block = 0;
 
-    constructor(txHash: string) {
+    constructor(txHash: string, block: number) {
         this.txHash = txHash;
+        this.block = block;
     }
 }
 
@@ -27,7 +30,7 @@ class BlockInfo {
         createdAt: number,
         numTxs: number,
         gasUsed: BigNumber,
-        gasLimit: BigNumber
+        gasLimit: BigNumber,
     ) {
         this.blockNum = blockNum;
         this.createdAt = createdAt;
@@ -54,59 +57,204 @@ class CollectorData {
     }
 }
 
-class StatCollector {
-    async fetchTransactionReceipts(stats: TxStats[], provider: Provider) {
-        const txFetchErrors: Error[] = [];
+class txBatchResult {
+    succeeded: txStats[];
+    remaining: string[];
 
+    errors: string[];
+
+    constructor(succeeded: txStats[], remaining: string[], errors: string[]) {
+        this.succeeded = succeeded;
+        this.remaining = remaining;
+
+        this.errors = errors;
+    }
+}
+
+class StatCollector {
+    async gatherTransactionReceipts(
+        txHashes: string[],
+        batchSize: number,
+        provider: Provider,
+    ): Promise<txStats[]> {
         Logger.info('Gathering transaction receipts...');
+
         const receiptBar = new SingleBar({
             barCompleteChar: '\u2588',
             barIncompleteChar: '\u2591',
             hideCursor: true,
         });
 
-        receiptBar.start(stats.length, 0, {
+        receiptBar.start(txHashes.length, 0, {
             speed: 'N/A',
         });
 
-        // Wait for all the transactions to get mined
-        for (const txStat of stats) {
-            try {
-                const txReceipt = await provider.waitForTransaction(
-                    txStat.txHash,
-                    1,
-                    60 * 10000
-                );
+        const fetchErrors: string[] = [];
 
-                if (txReceipt.status != undefined && txReceipt.status == 0) {
-                    throw new Error(
-                        `transaction ${txStat.txHash} failed during execution`
-                    );
-                }
+        let receiptBarProgress = 0;
+        let retryCounter = Math.ceil(txHashes.length * 0.025);
+        let remainingTransactions: string[] = txHashes;
+        let succeededTransactions: txStats[] = [];
 
-                txStat.block = txReceipt.blockNumber;
-            } catch (e: any) {
-                txFetchErrors.push(e);
+        const providerURL = (provider as JsonRpcProvider).connection.url;
+
+        // Fetch transaction receipts in batches,
+        // until the batch retry counter is reached (to avoid spamming)
+        while (remainingTransactions.length > 0) {
+            // Get the receipts for this batch
+            const result = await this.fetchTransactionReceipts(
+                remainingTransactions,
+                batchSize,
+                providerURL,
+            );
+
+            // Save any fetch errors
+            for (const fetchErr of result.errors) {
+                fetchErrors.push(fetchErr);
             }
 
-            receiptBar.increment();
+            // Update the remaining transactions whose
+            // receipts need to be fetched
+            remainingTransactions = result.remaining;
+
+            // Save the succeeded transactions
+            succeededTransactions = succeededTransactions.concat(result.succeeded);
+
+            // Update the user loading bar
+            receiptBar.increment(
+                succeededTransactions.length - receiptBarProgress,
+            );
+            receiptBarProgress = succeededTransactions.length;
+
+            // Decrease the retry counter
+            retryCounter--;
+
+            if (remainingTransactions.length == 0 || retryCounter == 0) {
+                // If there are no more remaining transaction receipts to wait on,
+                // or the batch retries have been depleted, stop the batching process
+                break;
+            }
+
+            // Wait for a block to be mined on the network before asking
+            // for the receipts again
+            await new Promise(resolve => {
+                provider.once('block', () => {
+                    resolve(null);
+                });
+            });
+        }
+
+        // Wait for the transaction receipts individually
+        // if they were not retrieved in the batching process.
+        // This process is slower, but it guarantees transaction receipts
+        // will eventually get retrieved, regardless of the number of blocks
+        for (const txHash of remainingTransactions) {
+            const txReceipt = await provider.waitForTransaction(
+                txHash,
+                1,
+                30 * 1000, // 30s per transaction
+            );
+
+            receiptBar.increment(1);
+
+            if (txReceipt.status != undefined && txReceipt.status == 0) {
+                throw new Error(`transaction ${txReceipt.transactionHash} failed on execution`);
+            }
+
+            succeededTransactions.push(new txStats(txHash, txReceipt.blockNumber));
         }
 
         receiptBar.stop();
-        Logger.success('Gathered transaction receipts');
+        if (fetchErrors.length > 0) {
+            Logger.warn('Errors encountered during batch sending:');
 
-        if (txFetchErrors.length > 0) {
-            Logger.warn('Errors encountered during receipts fetch:');
-
-            for (const err of txFetchErrors) {
-                Logger.error(err.message);
+            for (const err of fetchErrors) {
+                Logger.error(err);
             }
         }
+
+        Logger.success('Gathered transaction receipts');
+
+        return succeededTransactions;
+    }
+
+    async fetchTransactionReceipts(
+        txHashes: string[],
+        batchSize: number,
+        url: string,
+    ): Promise<txBatchResult> {
+        // Create the batches for transaction receipts
+        const batches: string[][] = Batcher.generateBatches<string>(txHashes, batchSize);
+        const succeeded: txStats[] = [];
+        const remaining: string[] = [];
+        const batchErrors: string[] = [];
+
+        let nextIndx = 0;
+        const responses = await Promise.all<AxiosResponse<any, any>>(
+            batches.map((hashes) => {
+                let singleRequests = '';
+                for (let i = 0; i < hashes.length; i++) {
+                    singleRequests += JSON.stringify({
+                        jsonrpc: '2.0',
+                        method: 'eth_getTransactionReceipt',
+                        params: [hashes[i]],
+                        id: nextIndx++,
+                    });
+
+                    if (i != hashes.length - 1) {
+                        singleRequests += ',\n';
+                    }
+                }
+
+                return axios({
+                    url: url,
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    data: '[' + singleRequests + ']',
+                });
+            }),
+        );
+
+        for (let batchIndex = 0; batchIndex < responses.length; batchIndex++) {
+            const data = responses[batchIndex].data;
+
+            for (let txHashIndex = 0; txHashIndex < data.length; txHashIndex++) {
+                const batchItem = data[txHashIndex];
+
+                if (!batchItem.result) {
+                    remaining.push(batches[batchIndex][txHashIndex]);
+
+                    continue;
+                }
+
+                if (batchItem.hasOwnProperty('error')) {
+                    // Error occurred during batch sends
+                    batchErrors.push(batchItem.error.message);
+
+                    continue;
+                }
+
+                if (batchItem.result.status == '0x0') {
+                    // Transaction failed
+                    throw new Error(`transaction ${batchItem.result.transactionHash} failed on execution`);
+                }
+
+
+                succeeded.push(new txStats(
+                    batchItem.result.transactionHash,
+                    batchItem.result.blockNumber,
+                ));
+            }
+        }
+
+        return new txBatchResult(succeeded, remaining, batchErrors);
     }
 
     async fetchBlockInfo(
-        stats: TxStats[],
-        provider: Provider
+        stats: txStats[],
+        provider: Provider,
     ): Promise<Map<number, BlockInfo>> {
         const blockSet: Set<number> = new Set<number>();
         for (const s of stats) {
@@ -140,8 +288,8 @@ class StatCollector {
                         fetchedInfo.timestamp,
                         fetchedInfo.transactions.length,
                         fetchedInfo.gasUsed,
-                        fetchedInfo.gasLimit
-                    )
+                        fetchedInfo.gasLimit,
+                    ),
                 );
             } catch (e: any) {
                 blockFetchErrors.push(e);
@@ -163,7 +311,7 @@ class StatCollector {
         return blocksMap;
     }
 
-    async calcTPS(stats: TxStats[], provider: Provider): Promise<number> {
+    async calcTPS(stats: txStats[], provider: Provider): Promise<number> {
         Logger.title('\n🧮 Calculating TPS data 🧮\n');
         let totalTxs = 0;
         let totalTime = 0;
@@ -198,14 +346,14 @@ class StatCollector {
 
                 if (!blockTimeMap.has(currentBlockNum)) {
                     const currentBlock = await provider.getBlock(
-                        currentBlockNum
+                        currentBlockNum,
                     );
 
                     blockTimeMap.set(currentBlockNum, currentBlock.timestamp);
                 }
 
                 const currentBlock = blockTimeMap.get(
-                    currentBlockNum
+                    currentBlockNum,
                 ) as number;
 
                 totalTime += Math.round(Math.abs(currentBlock - parentBlock));
@@ -230,7 +378,7 @@ class StatCollector {
         });
 
         const sortedMap = new Map(
-            [...blockInfoMap.entries()].sort((a, b) => a[0] - b[0])
+            [...blockInfoMap.entries()].sort((a, b) => a[0] - b[0]),
         );
 
         sortedMap.forEach((info) => {
@@ -268,11 +416,12 @@ class StatCollector {
     }
 
     async generateStats(
-        stats: TxStats[],
+        txHashes: string[],
         mnemonic: string,
-        url: string
+        url: string,
+        batchSize: number,
     ): Promise<CollectorData> {
-        if (stats.length == 0) {
+        if (txHashes.length == 0) {
             Logger.warn('No stat data to display');
 
             return new CollectorData(0, new Map());
@@ -283,20 +432,24 @@ class StatCollector {
         const provider = new JsonRpcProvider(url);
 
         // Fetch receipts
-        await this.fetchTransactionReceipts(stats, provider);
+        const txStats = await this.gatherTransactionReceipts(
+            txHashes,
+            batchSize,
+            provider,
+        );
 
         // Fetch block info
-        const blockInfoMap = await this.fetchBlockInfo(stats, provider);
+        const blockInfoMap = await this.fetchBlockInfo(txStats, provider);
 
         // Print the block utilization data
         this.printBlockData(blockInfoMap);
 
         // Print the final TPS and avg. utilization data
-        const avgTPS = await this.calcTPS(stats, provider);
+        const avgTPS = await this.calcTPS(txStats, provider);
         this.printFinalData(avgTPS, blockInfoMap);
 
         return new CollectorData(avgTPS, blockInfoMap);
     }
 }
 
-export { TxStats, StatCollector, CollectorData, BlockInfo };
+export { StatCollector, CollectorData, BlockInfo };
