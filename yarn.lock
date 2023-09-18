@@ -427,9 +427,9 @@
   integrity sha512-m3+6WWfSSl6zqoXy8uQQifbgqV7Gt6fsyWnHLgUWVtJQk75+OfUB+edSZ52YDj7leSiZtX7w1/E4w2x/Hb0orA==
 
 "@types/heap@^0.2.31":
-  version "0.2.31"
-  resolved "https://registry.npmjs.org/@types/heap/-/heap-0.2.31.tgz"
-  integrity sha512-cKL2veQoMEQGGSib6GTq7Of6mAX1e6gH/7F9ddE4+qsga/RRK/ThAkZcKF/i1yVc30ZxlY2r6vZ74NZNtAA0Yw==
+  version "0.2.32"
+  resolved "https://registry.yarnpkg.com/@types/heap/-/heap-0.2.32.tgz#ee2c1079676f627e69ad83c57254d7654fce69cb"
+  integrity sha512-GeKFLHmmYx6RIhSMFSXDj7UUVETilQv/JELLiqCYq1ntH0UBVA4a3AIJz2bsUNvLHIDTo2V0QA0CQ4UtfTmrNg==
 
 "@types/json-schema@^7.0.9":
   version "7.0.11"
