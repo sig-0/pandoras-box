@@ -422,9 +422,9 @@
     "@types/node" "*"
 
 "@types/cli-table@^0.3.1":
-  version "0.3.1"
-  resolved "https://registry.npmjs.org/@types/cli-table/-/cli-table-0.3.1.tgz"
-  integrity sha512-m3+6WWfSSl6zqoXy8uQQifbgqV7Gt6fsyWnHLgUWVtJQk75+OfUB+edSZ52YDj7leSiZtX7w1/E4w2x/Hb0orA==
+  version "0.3.3"
+  resolved "https://registry.yarnpkg.com/@types/cli-table/-/cli-table-0.3.3.tgz#4edf5498af4fa39685504e17342b9346535a76e1"
+  integrity sha512-GJPxeQ/McVnizfipKsCuJg3tEXg6GZvoFjLlohJpWHjDcSIwSAjbCJNuHDVQyrHiRiINXspzrFc/Tt9ztvZCoA==
 
 "@types/heap@^0.2.31":
   version "0.2.31"
