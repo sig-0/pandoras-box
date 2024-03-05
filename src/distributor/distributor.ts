@@ -108,7 +108,9 @@ class Distributor {
         const baseTxEstimate = await this.runtimeEstimator.EstimateBaseTx();
         const baseGasPrice = await this.runtimeEstimator.GetGasPrice();
 
-        const baseTxCost = baseGasPrice.mul(baseTxEstimate).add(inherentValue);
+        // add some more tokens to base tx cost if london fork is enabled,
+        // since base fee dynamically expands
+        const baseTxCost = baseGasPrice.mul(baseTxEstimate).add(inherentValue).mul(10);
 
         // Calculate how much each sub-account needs
         // to execute their part of the run cycle.
@@ -231,10 +233,12 @@ class Distributor {
         });
 
         for (const acc of accounts) {
-            await this.ethWallet.sendTransaction({
+            const response = await this.ethWallet.sendTransaction({
                 to: acc.address,
                 value: acc.missingFunds,
             });
+            
+            await response.wait();
 
             fundBar.increment();
             this.readyMnemonicIndexes.push(acc.mnemonicIndex);

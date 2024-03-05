@@ -134,9 +134,7 @@ async function run() {
     // Collect the data
     const collectorData = await new StatCollector().generateStats(
         txHashes,
-        mnemonic,
         url,
-        batchSize
     );
 
     // Output the data if needed
