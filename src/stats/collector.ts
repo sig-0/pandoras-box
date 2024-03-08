@@ -4,7 +4,6 @@ import axios, { AxiosResponse } from 'axios';
 import { SingleBar } from 'cli-progress';
 import Table from 'cli-table3';
 import Logger from '../logger/logger';
-import Batcher from '../runtime/batcher';
 
 class txStats {
     txHash: string;
@@ -145,10 +144,12 @@ class StatCollector {
         return blocksMap;
     }
 
-    async calcTPS(stats: txStats[], provider: Provider): Promise<number> {
+    async calcTPS(stats: txStats[], blockInfo: Map<number, BlockInfo>, provider: Provider): Promise<[number, number, number]> {
         Logger.title('\n🧮 Calculating TPS data 🧮\n');
         let totalTxs = 0;
         let totalTime = 0;
+        let maxTxsPerSecond = 0;
+        let minTxsPerSecond = Infinity;
 
         // Find the average txn time per block
         const blockFetchErrors = [];
@@ -169,34 +170,58 @@ class StatCollector {
             try {
                 const currentBlockNum = block;
                 const parentBlockNum = currentBlockNum - 1;
+                let currentBlockTxsNum = 0;
 
                 if (!blockTimeMap.has(parentBlockNum)) {
-                    const parentBlock = await provider.getBlock(parentBlockNum);
-
-                    blockTimeMap.set(parentBlockNum, parentBlock.timestamp);
+                    if (blockInfo.has(parentBlockNum)) {
+                        const parentBlockInfo = blockInfo.get(parentBlockNum) as BlockInfo;
+                        blockTimeMap.set(parentBlockNum, parentBlockInfo.createdAt);
+                    } else {
+                        const parentBlock = await provider.getBlock(parentBlockNum);
+                        blockTimeMap.set(parentBlockNum, parentBlock.timestamp);
+                    }
                 }
 
-                const parentBlock = blockTimeMap.get(parentBlockNum) as number;
+                const parentBlockTimestamp = blockTimeMap.get(parentBlockNum) as number;
 
                 if (!blockTimeMap.has(currentBlockNum)) {
-                    const currentBlock = await provider.getBlock(
-                        currentBlockNum
-                    );
+                    if (blockInfo.has(currentBlockNum)) {
+                        const currentBlockInfo = blockInfo.get(currentBlockNum) as BlockInfo;
+                        blockTimeMap.set(currentBlockNum, currentBlockInfo.createdAt);
+                        currentBlockTxsNum = currentBlockInfo.numTxs;
+                    } else {
+                        const currentBlock = await provider.getBlock(
+                            currentBlockNum
+                        );
 
-                    blockTimeMap.set(currentBlockNum, currentBlock.timestamp);
+                        blockTimeMap.set(currentBlockNum, currentBlock.timestamp);
+                        currentBlockTxsNum = currentBlock.transactions.length;
+                    }
                 }
 
                 const currentBlock = blockTimeMap.get(
                     currentBlockNum
                 ) as number;
 
-                totalTime += Math.round(Math.abs(currentBlock - parentBlock));
+                const blockTime = Math.round(Math.abs(currentBlock - parentBlockTimestamp));
+                const currentBlockTxsPerSecond = currentBlockTxsNum / blockTime;
+
+                if (currentBlockTxsPerSecond > maxTxsPerSecond) {
+                    maxTxsPerSecond = currentBlockTxsPerSecond;
+                }
+
+                if (currentBlockTxsPerSecond < minTxsPerSecond) {
+                    minTxsPerSecond = currentBlockTxsPerSecond;
+                }
+
+                totalTime += blockTime;
+
             } catch (e: any) {
                 blockFetchErrors.push(e);
             }
         }
 
-        return Math.ceil(totalTxs / totalTime);
+        return [Math.ceil(totalTxs / totalTime), minTxsPerSecond, maxTxsPerSecond];
     }
 
     printBlockData(blockInfoMap: Map<number, BlockInfo>) {
@@ -228,7 +253,7 @@ class StatCollector {
         Logger.info(utilizationTable.toString());
     }
 
-    printFinalData(tps: number, blockInfoMap: Map<number, BlockInfo>) {
+    printFinalData(tps: [number, number, number], blockInfoMap: Map<number, BlockInfo>) {
         // Find average utilization
         let totalUtilization = 0;
         blockInfoMap.forEach((info) => {
@@ -237,11 +262,13 @@ class StatCollector {
         const avgUtilization = totalUtilization / blockInfoMap.size;
 
         const finalDataTable = new Table({
-            head: ['TPS', 'Blocks', 'Avg. Utilization'],
+            head: ['Average TPS', 'Min TPS', 'Max TPS', 'Blocks', 'Avg. Utilization'],
         });
 
         finalDataTable.push([
-            tps,
+            tps[0],
+            tps[1],
+            tps[2],
             blockInfoMap.size,
             `${avgUtilization.toFixed(2)}%`,
         ]);
@@ -276,10 +303,10 @@ class StatCollector {
         this.printBlockData(blockInfoMap);
 
         // Print the final TPS and avg. utilization data
-        const avgTPS = await this.calcTPS(txStats, provider);
+        const avgTPS = await this.calcTPS(txStats, blockInfoMap, provider);
         this.printFinalData(avgTPS, blockInfoMap);
 
-        return new CollectorData(avgTPS, blockInfoMap);
+        return new CollectorData(avgTPS[0], blockInfoMap);
     }
 
     async waitForTxPoolToEmpty(url: string, numOfTxs: number): Promise<boolean> {
@@ -288,8 +315,6 @@ class StatCollector {
 
         Logger.info('\nWaiting for all transactions to be executed...');
 
-        let pending = 1;
-        let queued = 1;
         const txpoolStatusPromise = async () => {
             while (!stopFlag) {
                 try {
@@ -301,14 +326,12 @@ class StatCollector {
                     });
     
                     const { pending: newPending, queued: newQueued } = response.data.result;
-                    pending = newPending;
-                    queued = newQueued;
     
                     Logger.info(
-                        `Pending: ${pending} | Queued: ${queued}`
+                        `Pending: ${newPending} | Queued: ${newQueued}`
                     );
 
-                    if (pending === 0 && queued === 0) {
+                    if ((newPending === 0 && newQueued === 0) || (newPending === '0x0' && newQueued === '0x0')){
                         return true; // Break the loop if there are no pending or queued transactions
                     }
     
