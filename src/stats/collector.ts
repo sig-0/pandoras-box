@@ -48,10 +48,14 @@ class BlockInfo {
 
 class CollectorData {
     tps: number;
+    minTps: number;
+    maxTps: number;
     blockInfo: Map<number, BlockInfo>;
 
-    constructor(tps: number, blockInfo: Map<number, BlockInfo>) {
+    constructor(tps: number, minTps: number, maxTps: number, blockInfo: Map<number, BlockInfo>) {
         this.tps = tps;
+        this.minTps = minTps;
+        this.maxTps = maxTps;
         this.blockInfo = blockInfo;
     }
 }
@@ -283,7 +287,7 @@ class StatCollector {
         if (txHashes.length == 0) {
             Logger.warn('No stat data to display');
 
-            return new CollectorData(0, new Map());
+            return new CollectorData(0, 0, 0, new Map());
         }
 
         let txStats: txStats[] = [];
@@ -306,7 +310,7 @@ class StatCollector {
         const avgTPS = await this.calcTPS(txStats, blockInfoMap, provider);
         this.printFinalData(avgTPS, blockInfoMap);
 
-        return new CollectorData(avgTPS[0], blockInfoMap);
+        return new CollectorData(avgTPS[0], avgTPS[1], avgTPS[2], blockInfoMap);
     }
 
     async waitForTxPoolToEmpty(url: string, numOfTxs: number): Promise<boolean> {

@@ -4,10 +4,14 @@ import { BlockInfo, CollectorData } from '../stats/collector';
 
 class outputFormat {
     averageTPS: number;
+    minTPS: number;
+    maxTPS: number;
     blocks: BlockInfo[];
 
-    constructor(averageTPS: number, blocks: BlockInfo[]) {
+    constructor(averageTPS: number, minTPS: number, maxTPS: number, blocks: BlockInfo[]) {
         this.averageTPS = averageTPS;
+        this.minTPS = minTPS;
+        this.maxTPS = maxTPS;
         this.blocks = blocks;
     }
 }
@@ -24,7 +28,7 @@ class Outputter {
         try {
             FileSystem.writeFile(
                 path,
-                JSON.stringify(new outputFormat(data.tps, blocks)),
+                JSON.stringify(new outputFormat(data.tps, data.minTps, data.maxTps, blocks)),
                 (error) => {
                     if (error) throw error;
                 }
