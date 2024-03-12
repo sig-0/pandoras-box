@@ -100,10 +100,14 @@ class StatCollector {
                 const txReceipt = await provider.waitForTransaction(
                     txHash,
                     1,
-                    60 * 10000
+                    2 * 60 * 1000 // 2 minutes
                 );
 
-                if (txReceipt.status != undefined && txReceipt.status == 0) {
+                if (txReceipt == null) {
+                    throw new Error(
+                        `transaction ${txHash} failed to be fetched in time`
+                    );
+                } else if (txReceipt.status != undefined && txReceipt.status == 0) {
                     throw new Error(
                         `transaction ${txHash} failed during execution`
                     );
