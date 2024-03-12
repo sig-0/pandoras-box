@@ -314,8 +314,12 @@ class StatCollector {
     }
 
     async waitForTxPoolToEmpty(url: string, numOfTxs: number): Promise<boolean> {
-        const timeout = numOfTxs * 500; // assume a transaction needs half a second
+        let timeout = numOfTxs * 500; // assume a transaction needs half a second
         let stopFlag = false;
+
+        if (timeout < 1000) {
+            timeout = 5000 // Set a minimum timeout of 5 seconds
+        }
 
         Logger.info('\nWaiting for all transactions to be executed...');
 
