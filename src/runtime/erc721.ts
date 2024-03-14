@@ -115,33 +115,34 @@ class ERC721Runtime {
         });
 
         const transactions: TransactionRequest[] = [];
+        const numAccounts = accounts.length;
+        const txsPerAccount = Math.floor(numTx / numAccounts);
+        const remainingTxs = numTx % numAccounts;
 
-        for (let i = 0; i < numTx; i++) {
-            const senderIndex = i % accounts.length;
-            const sender = accounts[senderIndex];
-
+        for (let i = 0; i < numAccounts; i++) {
+            const sender = accounts[i];
             const wallet = Wallet.fromMnemonic(
                 this.mnemonic,
-                `m/44'/60'/0'/0/${senderIndex}`
+                `m/44'/60'/0'/0/${i}`
             ).connect(this.provider);
 
-            const contract = new Contract(
-                this.contract.address,
-                ZexNFTs.abi,
-                wallet
-            );
+            for (let j = 0; j < txsPerAccount; j++) {
+                const transaction = await this.createTransaction(wallet, sender, chainID, gasPrice);
+                transactions.push(transaction);
 
-            const transaction = await contract.populateTransaction.createNFT(
-                this.nftURL
-            );
+                sender.incrNonce();
+                constructBar.increment();
+            }
+        }
 
-            // Override the defaults
-            transaction.from = sender.getAddress();
-            transaction.chainId = chainID;
-            transaction.gasPrice = gasPrice;
-            transaction.gasLimit = this.gasEstimation;
-            transaction.nonce = sender.getNonce();
+        const sender = accounts[accounts.length - 1];
+        const wallet = Wallet.fromMnemonic(
+            this.mnemonic,
+            `m/44'/60'/0'/0/${accounts.length - 1}`
+        ).connect(this.provider);
 
+        for (let i = 0; i < remainingTxs; i++) {
+            const transaction = await this.createTransaction(wallet, sender, chainID, gasPrice);
             transactions.push(transaction);
 
             sender.incrNonce();
@@ -152,6 +153,31 @@ class ERC721Runtime {
         Logger.success(`Successfully constructed ${numTx} transactions`);
 
         return transactions;
+    }
+
+    async createTransaction(
+        wallet: Wallet, 
+        sender: senderAccount, 
+        chainID: number, 
+        gasPrice: BigNumber) : Promise<TransactionRequest> {
+        const contract = new Contract(
+            this.contract?.address as string,
+            ZexNFTs.abi,
+            wallet
+        );
+
+        const transaction = await contract.populateTransaction.createNFT(
+            this.nftURL
+        );
+
+        // Override the defaults
+        transaction.from = sender.getAddress();
+        transaction.chainId = chainID;
+        transaction.gasPrice = BigNumber.from(gasPrice).mul(150).div(150);
+        transaction.gasLimit = BigNumber.from(this.gasEstimation).mul(150).div(100);
+        transaction.nonce = sender.getNonce();
+
+        return transaction;
     }
 
     GetStartMessage(): string {

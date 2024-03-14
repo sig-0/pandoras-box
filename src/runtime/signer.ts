@@ -100,17 +100,40 @@ class Signer {
         });
 
         const signedTxs: string[] = [];
+        const numTxs = transactions.length;
+        const numAccounts = accounts.length;
+        const txsPerAccount = Math.floor(numTxs/ numAccounts);
+        const remainingTxs = numTxs % numAccounts;
 
-        for (let i = 0; i < transactions.length; i++) {
-            const sender = accounts[i % accounts.length];
+        let k = 0;
+        for (let i = 0; i < numAccounts; i++) {
+            const sender = accounts[i];
 
+            for (let j = 0; j < txsPerAccount; j++) {
+                try {
+                    signedTxs.push(
+                        await sender.wallet.signTransaction(transactions[k])
+                    );
+                } catch (e: any) {
+                    failedTxnSignErrors.push(e);
+                }
+
+                k++;
+                signBar.increment();
+            }
+        }
+
+        const account = accounts[accounts.length - 1];
+        for (let i = 0; i < remainingTxs; i++) {
             try {
                 signedTxs.push(
-                    await sender.wallet.signTransaction(transactions[i])
+                    await account.wallet.signTransaction(transactions[k])
                 );
             } catch (e: any) {
                 failedTxnSignErrors.push(e);
             }
+
+            k++;
 
             signBar.increment();
         }

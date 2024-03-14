@@ -56,7 +56,7 @@ async function run() {
         )
         .option(
             '-b, --batch <batch>',
-            'The batch size of JSON-RPC transactions',
+            'The batch size of JSON-RPC transactions to send per second',
             '20'
         )
         .parse();
@@ -95,6 +95,8 @@ async function run() {
             throw RuntimeErrors.errUnknownRuntime;
     }
 
+    let startTime = performance.now();
+
     // Distribute the native currency funds
     const distributor = new Distributor(
         mnemonic,
@@ -106,7 +108,7 @@ async function run() {
 
     const accountIndexes: number[] = await distributor.distribute();
 
-    // Distribute the token funds, if any
+   // Distribute the token funds, if any
     if (mode === RuntimeType.ERC20) {
         const tokenDistributor = new TokenDistributor(
             mnemonic,
@@ -118,6 +120,12 @@ async function run() {
         // Start the distribution
         await tokenDistributor.distributeTokens();
     }
+
+    let endTime = performance.now();
+
+    Logger.info("\nTime to distribute funds: " + (endTime - startTime) / 1000 + "s\n");
+
+    startTime = performance.now();
 
     // Run the specific runtime
     const txHashes = await Engine.Run(
@@ -131,11 +139,21 @@ async function run() {
         )
     );
 
+    endTime = performance.now();
+
+    Logger.info("\nTime to run the stress test: " + (endTime - startTime) / 1000 + "s\n");
+
+    startTime = performance.now();
+
     // Collect the data
     const collectorData = await new StatCollector().generateStats(
         txHashes,
         url,
     );
+
+    endTime = performance.now();
+
+    Logger.info("\nTime to gather and calculate results: " + (endTime - startTime) / 1000 + "s\n");
 
     // Output the data if needed
     if (output) {

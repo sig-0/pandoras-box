@@ -62,48 +62,25 @@ class Batcher {
 
         try {
             let nextIndx = 0;
-            const responses = await Promise.all(
-                batches.map((item) => {
-                    let singleRequests = '';
-                    for (let i = 0; i < item.length; i++) {
-                        singleRequests += JSON.stringify({
-                            jsonrpc: '2.0',
-                            method: 'eth_sendRawTransaction',
-                            params: [item[i]],
-                            id: nextIndx++,
-                        });
 
-                        if (i != item.length - 1) {
-                            singleRequests += ',\n';
-                        }
-                    }
-
-                    batchBar.increment();
-
-                    return axios({
-                        url: url,
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        data: '[' + singleRequests + ']',
+            for (const batch of batches) {
+                let singleRequests = '';
+                for (let i = 0; i < batch.length; i++) {
+                    singleRequests += JSON.stringify({
+                        jsonrpc: '2.0',
+                        method: 'eth_sendRawTransaction',
+                        params: [batch[i]],
+                        id: nextIndx++,
                     });
-                })
-            );
 
-            for (let i = 0; i < responses.length; i++) {
-                const content = responses[i].data;
-
-                for (const cnt of content) {
-                    if (cnt.hasOwnProperty('error')) {
-                        // Error occurred during batch sends
-                        batchErrors.push(cnt.error.message);
-
-                        continue;
+                    if (i != batch.length - 1) {
+                        singleRequests += ',\n';
                     }
-
-                    txHashes.push(cnt.result);
                 }
+
+                await Batcher.sendTransaction(url, singleRequests, batchErrors, txHashes);
+
+                batchBar.increment();
             }
         } catch (e: any) {
             Logger.error(e.message);
@@ -124,6 +101,36 @@ class Batcher {
         );
 
         return txHashes;
+    }
+
+    static async sendTransaction(url: string, singleRequests: string, batchErrors: string[], txHashes: string[]) {
+        try {
+            const response = await axios({
+                url: url,
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Connection': 'keep-alive', // Add this line to indicate keeping the TCP connection alive
+                },
+                data: '[' + singleRequests + ']',
+            });
+
+            const content = response.data;
+
+            for (const cnt of content) {
+                if (cnt.hasOwnProperty('error')) {
+                    // Error occurred during batch sends
+                    batchErrors.push(cnt.error.message);
+                    continue;
+                }
+
+                txHashes.push(cnt.result);
+            }
+
+            await new Promise(resolve => setTimeout(resolve, 100));
+        } catch (e: any) {
+            Logger.error(e.message);
+        }
     }
 }
 

@@ -71,20 +71,42 @@ class EOARuntime {
             hideCursor: true,
         });
 
-        Logger.info('\nConstructing value transfer transactions...');
+        Logger.info('\nConstructing value transfer transactions...')
         constructBar.start(numTx, 0, {
             speed: 'N/A',
         });
 
         const transactions: TransactionRequest[] = [];
 
-        for (let i = 0; i < numTx; i++) {
-            const senderIndex = i % accounts.length;
-            const receiverIndex = (i + 1) % accounts.length;
+        const numAccounts = accounts.length;
+        const txsPerAccount = Math.floor(numTx / numAccounts);
+        const remainingTxs = numTx % numAccounts;
 
-            const sender = accounts[senderIndex];
-            const receiver = accounts[receiverIndex];
+        for (let i = 0; i < numAccounts; i++) {
+            const sender = accounts[i];
 
+            for (let j = 0; j < txsPerAccount; j++) {
+                const receiverIndex = (i + j) % numAccounts;
+                const receiver = accounts[receiverIndex];
+
+                transactions.push({
+                    from: sender.getAddress(),
+                    chainId: chainID,
+                    to: receiver.getAddress(),
+                    gasPrice: gasPrice,
+                    gasLimit: this.gasEstimation,
+                    value: this.defaultValue,
+                    nonce: sender.getNonce(),
+                });
+
+                sender.incrNonce();
+                constructBar.increment();
+            }
+        }
+
+        const sender = accounts[accounts.length - 1];
+        const receiver = accounts[0];
+        for (let i = 0; i < remainingTxs; i++) {
             transactions.push({
                 from: sender.getAddress(),
                 chainId: chainID,

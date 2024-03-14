@@ -146,37 +146,38 @@ class ERC20Runtime {
         });
 
         const transactions: TransactionRequest[] = [];
+        const numAccounts = accounts.length;
+        const txsPerAccount = Math.floor(numTx / numAccounts);
+        const remainingTxs = numTx % numAccounts;
 
-        for (let i = 0; i < numTx; i++) {
-            const senderIndex = i % accounts.length;
-            const receiverIndex = (i + 1) % accounts.length;
-
-            const sender = accounts[senderIndex];
-            const receiver = accounts[receiverIndex];
-
+        for (let i = 0; i < numAccounts; i++) {
+            const sender = accounts[i];
             const wallet = Wallet.fromMnemonic(
                 this.mnemonic,
-                `m/44'/60'/0'/0/${senderIndex}`
+                `m/44'/60'/0'/0/${i}`
             ).connect(this.provider);
 
-            const contract = new Contract(
-                this.contract.address,
-                ZexCoin.abi,
-                wallet
-            );
+            for (let j = 0; j < txsPerAccount; j++) {
+                const receiverIndex = (i + j + 1) % numAccounts;
+                const receiver = accounts[receiverIndex];
 
-            const transaction = await contract.populateTransaction.transfer(
-                receiver.getAddress(),
-                this.defaultTransferValue
-            );
+                const transaction = await this.createTransferTransaction(wallet, receiver, sender, chainID, gasPrice);
+                transactions.push(transaction);
+    
+                sender.incrNonce();
+                constructBar.increment();
+            }
+        }
 
-            // Override the defaults
-            transaction.from = sender.getAddress();
-            transaction.chainId = chainID;
-            transaction.gasPrice = gasPrice;
-            transaction.gasLimit = this.gasEstimation;
-            transaction.nonce = sender.getNonce();
+        const sender = accounts[accounts.length - 1];
+        const wallet = Wallet.fromMnemonic(
+            this.mnemonic,
+            `m/44'/60'/0'/0/${accounts.length - 1}`
+        ).connect(this.provider);
 
+        const receiver = accounts[0];
+        for (let i = 0; i < remainingTxs; i++) {
+            const transaction = await this.createTransferTransaction(wallet, receiver, sender, chainID, gasPrice);
             transactions.push(transaction);
 
             sender.incrNonce();
@@ -187,6 +188,33 @@ class ERC20Runtime {
         Logger.success(`Successfully constructed ${numTx} transactions`);
 
         return transactions;
+    }
+
+    async createTransferTransaction(
+        wallet: Wallet, 
+        receiver: senderAccount, 
+        sender: senderAccount, 
+        chainID: number, 
+        gasPrice: BigNumber) : Promise<TransactionRequest> {
+        const contract = new Contract(
+            this.contract?.address as string,
+            ZexCoin.abi,
+            wallet
+        );
+
+        const transaction = await contract.populateTransaction.transfer(
+            receiver.getAddress(),
+            this.defaultTransferValue
+        );
+
+        // Override the defaults
+        transaction.from = sender.getAddress();
+        transaction.chainId = chainID;
+        transaction.gasPrice = BigNumber.from(gasPrice).mul(150).div(100);
+        transaction.gasLimit = BigNumber.from(this.gasEstimation).mul(150).div(100);
+        transaction.nonce = sender.getNonce();
+
+        return transaction;
     }
 
     GetStartMessage(): string {

@@ -66,10 +66,7 @@ class StatCollector {
         stats: txStats[],
         provider: Provider
     ): Promise<Map<number, BlockInfo>> {
-        let isOk = await this.waitForTxPoolToEmpty((provider as JsonRpcProvider).connection.url, txHashes.length);
-        if (!isOk) {
-            return new Map<number, BlockInfo>();
-        }
+        await this.waitForTxPoolToEmpty((provider as JsonRpcProvider).connection.url, txHashes.length);
 
         Logger.info('\nGathering transaction receipts...');
 
@@ -88,56 +85,84 @@ class StatCollector {
         const blocksMap: Map<number, BlockInfo> = new Map<number, BlockInfo>();
         const txToBlockMap: Map<string, number> = new Map<string, number>();
 
-        for (const txHash of txHashes) {
-            try {
-                if (txToBlockMap.has(txHash)) {
-                    stats.push(new txStats(txHash, txToBlockMap.get(txHash) as number));
-                    receiptBar.increment();
-
-                    continue;
-                }
-
-                const txReceipt = await provider.waitForTransaction(
-                    txHash,
-                    1,
-                    2 * 60 * 1000 // 2 minutes
-                );
-
-                if (txReceipt == null) {
-                    throw new Error(
-                        `transaction ${txHash} failed to be fetched in time`
-                    );
-                } else if (txReceipt.status != undefined && txReceipt.status == 0) {
-                    throw new Error(
-                        `transaction ${txHash} failed during execution`
-                    );
-                }
-
-                stats.push(new txStats(txHash, txReceipt.blockNumber));
-
-                const block = await provider.getBlock(txReceipt.blockNumber);
-                blocksMap.set(
-                    block.number,
-                    new BlockInfo(
-                        block.number,
-                        block.timestamp,
-                        block.transactions.length,
-                        block.gasUsed,
-                        block.gasLimit
-                    )
-                );
-
-                for (const tx of block.transactions) {
-                    txToBlockMap.set(tx, block.number);
-                }
-
-            } catch (e: any) {
-                fetchErrors.push(e);
-            }
-
-            receiptBar.increment();
+        let stopFlag = false;
+        let timeout = txHashes.length * 500; // assume a transaction needs half a second
+        
+        if (timeout < 1000) {
+            timeout = 5000 // Set a minimum timeout of 5 seconds
+        } else if (timeout > 500000) { // if the timeout is too large, set it to 500 seconds
+            timeout = 500000;
         }
 
+        const receiptGatheringPromise = async () => {
+            for (const txHash of txHashes) {
+                try {
+                    if (stopFlag) {
+                        break;
+                    }
+
+                    if (txToBlockMap.has(txHash)) {
+                        stats.push(new txStats(txHash, txToBlockMap.get(txHash) as number));
+                        receiptBar.increment();
+    
+                        continue;
+                    }
+    
+                    const txReceipt = await provider.waitForTransaction(
+                        txHash,
+                        1,
+                        1000, // 1s
+                    );
+    
+                    if (txReceipt == null) {
+                        throw new Error(
+                            `transaction ${txHash} failed to be fetched in time`
+                        );
+                    } else if (txReceipt.status != undefined && txReceipt.status == 0) {
+                        throw new Error(
+                            `transaction ${txHash} failed during execution`
+                        );
+                    }
+    
+                    stats.push(new txStats(txHash, txReceipt.blockNumber));
+    
+                    const block = await provider.getBlock(txReceipt.blockNumber);
+                    blocksMap.set(
+                        block.number,
+                        new BlockInfo(
+                            block.number,
+                            block.timestamp,
+                            block.transactions.length,
+                            block.gasUsed,
+                            block.gasLimit
+                        )
+                    );
+    
+                    for (const tx of block.transactions) {
+                        txToBlockMap.set(tx, block.number);
+                    }
+    
+                } catch (e: any) {
+                    fetchErrors.push(e);
+                }
+    
+                receiptBar.increment();
+            }
+        };
+
+        const timeoutPromise = new Promise<boolean>((_, reject) => {
+            setTimeout(() => {
+                stopFlag = true; // Stop the txpoolStatusPromise loop
+                reject(new Error('Timeout: Waiting for tx pool to empty took longer than ' + timeout / 1000 + 'seconds.'));
+            }, timeout);
+        });
+
+        try {
+            await Promise.race([receiptGatheringPromise(), timeoutPromise]);
+        } catch (error: any) {
+            Logger.warn(error.message);
+        }
+        
         receiptBar.stop();
         if (fetchErrors.length > 0) {
             Logger.warn('Errors encountered during batch sending:');
@@ -147,7 +172,7 @@ class StatCollector {
             }
         }
 
-        Logger.success('Gathered transaction receipts');
+        Logger.success('Gathering transaction receipts finished');
 
         return blocksMap;
     }
@@ -323,6 +348,8 @@ class StatCollector {
 
         if (timeout < 1000) {
             timeout = 5000 // Set a minimum timeout of 5 seconds
+        } else if (timeout > 200000) { // if the timeout is too large, set it to 200 seconds
+            timeout = 200000;
         }
 
         Logger.info('\nWaiting for all transactions to be executed...');
@@ -369,7 +396,7 @@ class StatCollector {
 
             return true;
         } catch (error: any) {
-            Logger.error(error.message);
+            Logger.warn(error.message);
 
             return false;
         }
