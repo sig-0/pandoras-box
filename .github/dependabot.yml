@@ -34,5 +34,8 @@ updates:
                   - '*'
       pull-request-branch-name:
           separator: '-'
+      ignore:
+          - dependency-name: 'chalk'
+            update-types: ['version-update:semver-major']
       reviewers:
           - 'zivkovicmilos'
