@@ -242,6 +242,7 @@ class StatCollector {
                     continue;
                 }
 
+                // eslint-disable-next-line no-prototype-builtins
                 if (batchItem.hasOwnProperty('error')) {
                     // Error occurred during batch sends
                     batchErrors.push(batchItem.error.message);
@@ -361,9 +362,8 @@ class StatCollector {
                 const parentBlock = blockTimeMap.get(parentBlockNum) as number;
 
                 if (!blockTimeMap.has(currentBlockNum)) {
-                    const currentBlock = await provider.getBlock(
-                        currentBlockNum
-                    );
+                    const currentBlock =
+                        await provider.getBlock(currentBlockNum);
 
                     blockTimeMap.set(currentBlockNum, currentBlock.timestamp);
                 }
