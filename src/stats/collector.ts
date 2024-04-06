@@ -242,6 +242,7 @@ class StatCollector {
                     continue;
                 }
 
+                // eslint-disable-next-line no-prototype-builtins
                 if (batchItem.hasOwnProperty('error')) {
                     // Error occurred during batch sends
                     batchErrors.push(batchItem.error.message);

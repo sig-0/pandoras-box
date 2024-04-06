@@ -95,6 +95,7 @@ class Batcher {
                 const content = responses[i].data;
 
                 for (const cnt of content) {
+                    // eslint-disable-next-line no-prototype-builtins
                     if (cnt.hasOwnProperty('error')) {
                         // Error occurred during batch sends
                         batchErrors.push(cnt.error.message);
