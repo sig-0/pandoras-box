@@ -361,9 +361,8 @@ class StatCollector {
                 const parentBlock = blockTimeMap.get(parentBlockNum) as number;
 
                 if (!blockTimeMap.has(currentBlockNum)) {
-                    const currentBlock = await provider.getBlock(
-                        currentBlockNum
-                    );
+                    const currentBlock =
+                        await provider.getBlock(currentBlockNum);
 
                     blockTimeMap.set(currentBlockNum, currentBlock.timestamp);
                 }
