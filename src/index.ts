@@ -67,7 +67,7 @@ async function run() {
     const transactionCount = options.transactions;
     const mode = options.mode;
     const mnemonic = options.mnemonic;
-    const subAccountsCount = options.SubAccounts;
+    const subAccountsCount = options.subAccounts;
     const batchSize = options.batch;
     const output = options.output;
 
